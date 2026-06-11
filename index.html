@@ -245,6 +245,7 @@
         <h3 class="text-xl font-bold">Otimizando...</h3>
         <p id="loadingStatus" class="text-xs mt-4 font-mono text-green-300"></p>
         <p id="loadingBest" class="text-sm mt-2 font-bold text-yellow-400"></p>
+        <button onclick="exportarCRICAtual()" id="btnDownloadCurrent" class="mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-1 px-4 rounded shadow border border-green-500 text-xs hidden"><i class="fas fa-download"></i> Baixar Melhor Atual (.cric)</button>
 		<button onclick="interromperGeracao()" id="btnPararGen" class="mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow border border-red-500" style="cursor:pointer;">Parar e usar a melhor distribuição até o momento</button>
 	</div>
     
@@ -271,6 +272,7 @@
         let turBackup = null;
         let autoPreenchimentoAtivo = false;
         let wakeLock = null;
+        let bestTurGlobal = null;
 
         // FIX: geração de ID mais robusta, evitando colisões em importações rápidas
         const genId = () => Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,9);
@@ -1745,6 +1747,7 @@
             try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
 
             turBackup = JSON.stringify(tur);
+            bestTurGlobal = null;
             document.getElementById('btnUndo').classList.remove('hidden');
 
             await new Promise(r=>setTimeout(r,100));
@@ -1762,6 +1765,7 @@
 			btn.classList.remove('opacity-50', 'cursor-not-allowed');
 
             document.getElementById('loadingBest').innerText = "";  //Acompanhar progresso do melhor resultado encontrado
+            document.getElementById('btnDownloadCurrent').classList.add('hidden');
 
 			for(let i=0; i < numIteracoes; i++){
 				// NOVO: Quebra o loop se o botão for clicado
@@ -1975,7 +1979,9 @@
                 if(currentScore < minScore) { 
                     minScore = currentScore; 
                     bestTur = tmp; 
+                    bestTurGlobal = tmp;
                     document.getElementById('loadingBest').innerText = `Melhor arranjo encontrado: ${currentMissing} faltas`; // Atualiza o melhor resultado encontrado a cada melhoria significativa (redução de faltas)
+                    document.getElementById('btnDownloadCurrent').classList.remove('hidden');
                 }
                 
                 // PARADA RÁPIDA: Se as faltas zeraram, a grade já não tem avisos ou choques 
@@ -2037,7 +2043,11 @@
             document.getElementById('reportModal').classList.remove('hidden');
         }
 
-        function exportarCRIC(){
+        function exportarCRICAtual() {
+            if (bestTurGlobal) exportarCRIC(bestTurGlobal);
+        }
+
+        function exportarCRIC(lista = tur){
             let cric="TIPO;NOME;D1;D2;D3;D4;D5;D6\n";
             amb.forEach(a=>{
                 const nomesStr = (a.nomes && a.nomes.length) ? a.nomes.join('|') : '';
@@ -2052,7 +2062,7 @@
                 cric+=`DISC;${d.nome};${d.carga};${ambsFormatados};${d.splits||''};;;\n`;
             });
             prof.forEach(p=>cric+=`PROF;${p.nome};${p.disciplinas.join('|')};${p.restricoes.join('|')};${p.evitar.join('|')};${p.semRestricao?'semRestricao':''};;\n`);
-            tur.forEach(t=>{
+            lista.forEach(t=>{
                 const profs = t.professores ? Object.entries(t.professores).map(([k,v])=>{
                     const nomes = v.split(',').filter(Boolean).map(id=>prof.find(p=>p.id==id)?.nome).filter(Boolean).join(',');
                     return `${k}:${nomes}`;
@@ -2060,7 +2070,7 @@
                 const vincs = t.vinculos ? Object.entries(t.vinculos).map(([k,v])=>`${k}:${v}`).join('=') : ''; 
                 cric+=`TURMA;${t.nome};${t.curso};${t.disciplinas.join('|')};${t.slotsAtivos.join('|')};${t.alunos};${profs};${vincs}\n`
             });
-            tur.forEach(t=>{DIAS.forEach((dayName,d)=>{Object.keys(t.horario[d]).forEach(k=>{
+            lista.forEach(t=>{DIAS.forEach((dayName,d)=>{Object.keys(t.horario[d]).forEach(k=>{
                 const trId = k.replace(/[0-9]/g, '');
                 const hr = parseInt(k.replace(/[^0-9]/g, ''));
                 if (hr <= NUM_AULAS && t.slotsAtivos.includes(`${d}-${trId}`)) {
