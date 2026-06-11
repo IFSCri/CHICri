@@ -2048,10 +2048,10 @@
         }
 
         function exportarCRIC(lista = tur){
-            let cric="TIPO;NOME;D1;D2;D3;D4;D5;D6\n";
+            let cric="TIPO§NOME§D1§D2§D3§D4§D5§D6\n";
             amb.forEach(a=>{
                 const nomesStr = (a.nomes && a.nomes.length) ? a.nomes.join('|') : '';
-                cric+=`AMB;${a.tipo};${a.cap};${a.qtd};${nomesStr};;;\n`;
+                cric+=`AMB§${a.tipo}§${a.cap}§${a.qtd}§${nomesStr}§§§\n`;
             });
             disc.forEach(d=>{
                 let ambsFormatados = (d.amb||[]).map(room => {
@@ -2059,26 +2059,27 @@
                     if (base && !base.isGeneric) return `${base.obj.tipo} -> ${room}`;
                     return room;
                 }).join('+');
-                cric+=`DISC;${d.nome};${d.carga};${ambsFormatados};${d.splits||''};;;\n`;
+                cric+=`DISC§${d.nome}§${d.carga}§${ambsFormatados}§${d.splits||''}§§§\n`;
             });
-            prof.forEach(p=>cric+=`PROF;${p.nome};${p.disciplinas.join('|')};${p.restricoes.join('|')};${p.evitar.join('|')};${p.semRestricao?'semRestricao':''};;\n`);
+            prof.forEach(p=>cric+=`PROF§${p.nome}§${p.disciplinas.join('|')}§${p.restricoes.join('|')}§${p.evitar.join('|')}§${p.semRestricao?'semRestricao':''}§§\n`);
             lista.forEach(t=>{
                 const profs = t.professores ? Object.entries(t.professores).map(([k,v])=>{
                     const nomes = v.split(',').filter(Boolean).map(id=>prof.find(p=>p.id==id)?.nome).filter(Boolean).join(',');
                     return `${k}:${nomes}`;
                 }).join('=') : ''; 
                 const vincs = t.vinculos ? Object.entries(t.vinculos).map(([k,v])=>`${k}:${v}`).join('=') : ''; 
-                cric+=`TURMA;${t.nome};${t.curso};${t.disciplinas.join('|')};${t.slotsAtivos.join('|')};${t.alunos};${profs};${vincs}\n`
+                cric+=`TURMA§${t.nome}§${t.curso}§${t.disciplinas.join('|')}§${t.slotsAtivos.join('|')}§${t.alunos}§${profs}§${vincs}\n`
             });
             lista.forEach(t=>{DIAS.forEach((dayName,d)=>{Object.keys(t.horario[d]).forEach(k=>{
                 const trId = k.replace(/[0-9]/g, '');
                 const hr = parseInt(k.replace(/[^0-9]/g, ''));
                 if (hr <= NUM_AULAS && t.slotsAtivos.includes(`${d}-${trId}`)) {
                     const val=t.horario[d][k];
-                    if(val){val.split('&').forEach(aloc=>{const parts=aloc.split('|');const p=parts[0];const dn=parts[1];const sl=parts[2];const prNs=p.split(',').filter(Boolean).map(id=>prof.find(x=>x.id==id)?.nome||'?').join('+');cric+=`ALOC;${t.nome};${d};${k[0]};${k[1]};${prNs}|${dn}|${sl}\n`;})}
+                    if(val){val.split('&').forEach(aloc=>{const parts=aloc.split('|');const p=parts[0];const dn=parts[1];const sl=parts[2];const prNs=p.split(',').filter(Boolean).map(id=>prof.find(x=>x.id==id)?.nome||'?').join('+');cric+=`ALOC§${t.nome}§${d}§${k[0]}§${k[1]}§${prNs}|${dn}|${sl}\n`;})}
                 }
             })})});
-            const b=new Blob([cric],{type:'text/cric'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='CHICri_v10_28.cric';a.click();
+            // const b=new Blob([cric],{type:'text/cric'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='CHICri_v10_28.cric';a.click();
+            const b=new Blob([cric],{type:'text/cric'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;const dh=new Date().toLocaleString('pt-BR').replace(/[\/:]/g,'-').replace(', ','_');a.download=`CHICri_${dh}.cric`;a.click();
         }
 
         function executarProcessamentoCRIC(texto) {
