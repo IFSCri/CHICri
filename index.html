@@ -212,6 +212,11 @@
         </div>
 
         <div class="lg:col-span-8">
+            <div class="flex justify-end mb-2">
+                <button onclick="toggleAllGrades()" id="btnToggleAll" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-3 rounded shadow transition font-bold flex items-center border border-gray-300">
+                    <i class="fas fa-expand-alt mr-2"></i> Expandir Tudo
+                </button>
+            </div>
             <div id="containerGrades" class="space-y-8 pb-20"></div>
         </div>
     </div>
@@ -899,12 +904,37 @@
             return html + '</div>';
         }
 
+        let expandedGrades = new Set();
+        
+        function toggleGrade(id) {
+            if(expandedGrades.has(id)) expandedGrades.delete(id);
+            else expandedGrades.add(id);
+            renderGrades();
+        }
+        
+        function toggleAllGrades() {
+            const isAnyCollapsed = tur.some(t => !expandedGrades.has(t.id));
+            if (isAnyCollapsed) {
+                tur.forEach(t => expandedGrades.add(t.id));
+            } else {
+                expandedGrades.clear();
+            }
+            renderGrades();
+        }
+
         function renderGrades(){
+            const btn = document.getElementById('btnToggleAll');
+            if(btn && tur.length > 0) {
+                const allExp = tur.every(t => expandedGrades.has(t.id));
+                btn.innerHTML = allExp ? '<i class="fas fa-compress-alt mr-2"></i> Recolher Tudo' : '<i class="fas fa-expand-alt mr-2"></i> Expandir Tudo';
+            }
+
             const c=document.getElementById('containerGrades');
             const sorted=[...tur].sort((a,b)=>(a.curso||'').localeCompare(b.curso||'')||a.nome.localeCompare(b.nome));
             c.innerHTML=sorted.map(t=>{
                 const tG=TURNOS.filter(tr=>t.slotsAtivos.some(s=>s.endsWith(`-${tr.id}`)));
-                let h=`<div class="bg-white rounded shadow border mb-6"><div class="bg-gray-50 px-4 py-2 border-b flex justify-between items-center"><div><b>${t.nome}</b> <span class="text-xs text-gray-500">${t.curso}</span></div></div><div class="table-container"><table class="w-full text-xs text-left border-collapse" style="table-layout: fixed;"><thead class="bg-gray-100 font-bold uppercase"><tr><th class="border p-1 text-center" style="width: 4%;">T</th><th class="border p-1 text-center" style="width: 4%;">H</th>${DIAS.map(d=>`<th class="border p-1 text-center" style="width: 18.4%;">${d}</th>`).join('')}</tr></thead><tbody>`;
+                const isExp = expandedGrades.has(t.id);
+                let h=`<div class="bg-white rounded shadow border mb-6"><div class="bg-gray-50 px-4 py-2 border-b flex justify-between items-center cursor-pointer hover:bg-gray-100 transition select-none" onclick="toggleGrade('${t.id}')"><div><b>${t.nome}</b> <span class="text-xs text-gray-500">${t.curso}</span></div><i id="icon-grade-${t.id}" class="fas fa-chevron-down text-gray-400 transition-transform duration-200 ${isExp ? 'rotate-180' : ''}"></i></div><div id="body-grade-${t.id}" class="table-container ${isExp ? '' : 'hidden'}"><table class="w-full text-xs text-left border-collapse" style="table-layout: fixed;"><thead class="bg-gray-100 font-bold uppercase"><tr><th class="border p-1 text-center" style="width: 4%;">T</th><th class="border p-1 text-center" style="width: 4%;">H</th>${DIAS.map(d=>`<th class="border p-1 text-center" style="width: 18.4%;">${d}</th>`).join('')}</tr></thead><tbody>`;
                 tG.forEach(tr=>{HORARIOS.forEach(hr=>{
                     h+=`<tr>`;if(hr===1)h+=`<td rowspan="${NUM_AULAS}" class="border p-1 font-bold text-center ${tr.c}">${tr.id}</td>`;h+=`<td class="border p-1 text-center font-mono">${hr}</td>`;
                     DIAS.forEach((dayName,dx)=>{
