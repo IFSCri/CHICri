@@ -212,7 +212,10 @@
         </div>
 
         <div class="lg:col-span-8">
-            <div class="flex justify-end mb-2">
+            <div class="flex justify-end mb-2 gap-2">
+                <label class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 py-1 px-3 rounded shadow transition font-bold flex items-center border border-purple-300 cursor-pointer" title="Marcar/Desmarcar todas para Geração Automática">
+                    <input type="checkbox" id="chkToggleAutoAll" class="mr-2 accent-purple-600" checked onchange="toggleAllAuto(this.checked)"> <i class="fas fa-magic mr-1"></i> Selecionar Todas
+                </label>
                 <button onclick="toggleAllGrades()" id="btnToggleAll" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-3 rounded shadow transition font-bold flex items-center border border-gray-300">
                     <i class="fas fa-expand-alt mr-2"></i> Expandir Tudo
                 </button>
@@ -278,6 +281,7 @@
         let autoPreenchimentoAtivo = false;
         let wakeLock = null;
         let bestTurGlobal = null;
+        let turmasSelecionadasAuto = new Set();
 
         // FIX: geração de ID mais robusta, evitando colisões em importações rápidas
         const genId = () => Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,9);
@@ -350,6 +354,7 @@
             ignoreAmb = localStorage.getItem('sge_ignore_amb') === 'true';
             document.getElementById('chkIgnoreAmb').checked = ignoreAmb;
             toggleIgnoreAmb(ignoreAmb, false);
+            tur.forEach(t => turmasSelecionadasAuto.add(t.id));
             migrar(); renderAll(); 
         }
 
@@ -403,23 +408,17 @@
             });
             salvar(false);
         }
+        
         function autoPreencherBuracosLivresNaGrade(){
-            if(autoPreenchimentoAtivo || !tur.length || !disc.length) return 0;
-            autoPreenchimentoAtivo = true;
-            try {
-                return preencherBuracosLivres(tur);
-            } finally {
-                autoPreenchimentoAtivo = false;
-            }
+            // Desativado do ciclo automático do UI para evitar que reescreva decisões manuais.
+            return 0;
         }
 
         function salvar(r=true){
-            autoPreencherBuracosLivresNaGrade();
             localStorage.setItem('sge_ambientes',JSON.stringify(amb));localStorage.setItem('sge_disciplinas',JSON.stringify(disc));localStorage.setItem('sge_turmas',JSON.stringify(tur));localStorage.setItem('sge_professores',JSON.stringify(prof));
             if(r){renderGrades();atualizarContadorNotificacoes();}
         }
         function renderAll(){
-            if(autoPreencherBuracosLivresNaGrade() > 0) localStorage.setItem('sge_turmas',JSON.stringify(tur));
             renderAmb();renderDisc();renderProfList();renderTurList();renderGrades();atualizarContadorNotificacoes();
         }
 
@@ -600,6 +599,7 @@
                     profsInit[dn] = prof.filter(p=>p.disciplinas.includes(dn)).map(p=>p.id).join(',');
                 });
                 tur.push({id:genId(),nome:n,curso:document.getElementById('inputCurso').value||'Geral',alunos:parseInt(document.getElementById('inputTurmaQtd').value)||40,disciplinas:d,slotsAtivos:s,professores:profsInit,vinculos:{},horario:h});
+                turmasSelecionadasAuto.add(tur[tur.length-1].id);
                 document.getElementById('inputTurma').value='';
             }
             invalidarUndo(); salvar(); renderTurList();
@@ -905,12 +905,16 @@
         }
 
         let expandedGrades = new Set();
-        let prioritizedTurmas = new Set();
         
-        function togglePrioridadeTurma(event, id) {
-            event.stopPropagation();
-            if (event.target.checked) prioritizedTurmas.add(id);
-            else prioritizedTurmas.delete(id);
+        function toggleTurmaAuto(id) {
+            if(turmasSelecionadasAuto.has(id)) turmasSelecionadasAuto.delete(id);
+            else turmasSelecionadasAuto.add(id);
+        }
+
+        function toggleAllAuto(checked) {
+            if(checked) tur.forEach(t => turmasSelecionadasAuto.add(t.id));
+            else turmasSelecionadasAuto.clear();
+            renderGrades();
         }
 
         function toggleGrade(id) {
@@ -941,7 +945,8 @@
             c.innerHTML=sorted.map(t=>{
                 const tG=TURNOS.filter(tr=>t.slotsAtivos.some(s=>s.endsWith(`-${tr.id}`)));
                 const isExp = expandedGrades.has(t.id);
-                let h=`<div class="bg-white rounded shadow border mb-6"><div class="bg-gray-50 px-4 py-2 border-b flex justify-between items-center cursor-pointer hover:bg-gray-100 transition select-none" onclick="toggleGrade('${t.id}')"><div class="flex items-center gap-3"><input type="checkbox" onclick="togglePrioridadeTurma(event, '${t.id}')" ${prioritizedTurmas.has(t.id) ? 'checked' : ''} class="w-4 h-4 cursor-pointer accent-purple-600" title="Priorizar esta turma na geração automática"><div><b>${t.nome}</b> <span class="text-xs text-gray-500">${t.curso}</span></div></div><i id="icon-grade-${t.id}" class="fas fa-chevron-down text-gray-400 transition-transform duration-200 ${isExp ? 'rotate-180' : ''}"></i></div><div id="body-grade-${t.id}" class="table-container ${isExp ? '' : 'hidden'}"><table class="w-full text-xs text-left border-collapse" style="table-layout: fixed;"><thead class="bg-gray-100 font-bold uppercase"><tr><th class="border p-1 text-center" style="width: 4%;">T</th><th class="border p-1 text-center" style="width: 4%;">H</th>${DIAS.map(d=>`<th class="border p-1 text-center" style="width: 18.4%;">${d}</th>`).join('')}</tr></thead><tbody>`;
+                const isAuto = turmasSelecionadasAuto.has(t.id);
+                let h=`<div class="bg-white rounded shadow border mb-6"><div class="bg-gray-50 px-4 py-2 border-b flex justify-between items-center cursor-pointer hover:bg-gray-100 transition select-none" onclick="toggleGrade('${t.id}')"><div class="flex items-center"><input type="checkbox" class="mr-3 w-4 h-4 accent-purple-600" ${isAuto ? 'checked' : ''} onclick="event.stopPropagation(); toggleTurmaAuto('${t.id}')" title="Incluir na Geração Automática"><div class="flex flex-col leading-tight"><b>${t.nome}</b> <span class="text-[10px] text-gray-500">${t.curso}</span></div></div><i id="icon-grade-${t.id}" class="fas fa-chevron-down text-gray-400 transition-transform duration-200 ${isExp ? 'rotate-180' : ''}"></i></div><div id="body-grade-${t.id}" class="table-container ${isExp ? '' : 'hidden'}"><table class="w-full text-xs text-left border-collapse" style="table-layout: fixed;"><thead class="bg-gray-100 font-bold uppercase"><tr><th class="border p-1 text-center" style="width: 4%;">T</th><th class="border p-1 text-center" style="width: 4%;">H</th>${DIAS.map(d=>`<th class="border p-1 text-center" style="width: 18.4%;">${d}</th>`).join('')}</tr></thead><tbody>`;
                 tG.forEach(tr=>{HORARIOS.forEach(hr=>{
                     h+=`<tr>`;if(hr===1)h+=`<td rowspan="${NUM_AULAS}" class="border p-1 font-bold text-center ${tr.c}">${tr.id}</td>`;h+=`<td class="border p-1 text-center font-mono">${hr}</td>`;
                     DIAS.forEach((dayName,dx)=>{
@@ -1676,16 +1681,11 @@
             let mudou = true;
             let guard = 0;
 
-            const listaOrdenada = [...lista].sort((a,b) => {
-                 const pA = prioritizedTurmas.has(a.id) ? 1 : 0;
-                 const pB = prioritizedTurmas.has(b.id) ? 1 : 0;
-                 return pB - pA;
-            });
-
             while (mudou && guard++ < 500) {
                 mudou = false;
 
-                for (const t of listaOrdenada) {
+                for (const t of lista) {
+                    if (!turmasSelecionadasAuto.has(t.id)) continue;
                     const cnt = contarAlocadasTurma(t);
 
                     for (let d=0; d<DIAS.length; d++) {
@@ -1827,11 +1827,14 @@
 
                 const tmp=JSON.parse(JSON.stringify(tur)); 
                 if(!manter) {
-                    tmp.forEach(t=>DIAS.forEach((_,d)=>t.horario[d]={}));
+                    tmp.forEach(t=> {
+                        if (turmasSelecionadasAuto.has(t.id)) DIAS.forEach((_,d)=>t.horario[d]={});
+                    });
                 }
 
                 const reqs=[]; 
                 tmp.forEach((t,ti)=>{
+                    if (!turmasSelecionadasAuto.has(t.id)) return;
                     const agrupado={};
                     t.disciplinas.forEach(dn=>{
                         const dObj = disc.find(x=>x.nome===dn);
@@ -1869,10 +1872,6 @@
 
                 // FIX #7: Ordena reqs por prioridade (disciplinas difíceis primeiro) com aleatoriedade parcial
                 reqs.sort((a, b) => {
-                    const isA = prioritizedTurmas.has(tmp[a.ti].id) ? 1 : 0;
-                    const isB = prioritizedTurmas.has(tmp[b.ti].id) ? 1 : 0;
-                    if (isA !== isB) return isB - isA; // Turmas marcadas têm prioridade absoluta na fila
-
                     const pA = calcularPrioridadeReq(a, tmp);
                     const pB = calcularPrioridadeReq(b, tmp);
                     // Mistura prioridade com aleatoriedade para exploração estocástica
