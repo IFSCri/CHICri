@@ -53,7 +53,7 @@
                         <i class="fas fa-print mr-1"></i> PDF
                     </button>
                     <div class="absolute right-0 mt-0 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200">
-                        <a href="#" onclick="imprimirRelatorio('alunos')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Turmas</a>
+                        <a href="#" onclick="imprimirRelatorio('alunos')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Alunos</a>
                         <a href="#" onclick="imprimirRelatorio('professores')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Professores</a>
                         <a href="#" onclick="imprimirRelatorio('ambientes')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Ambientes</a>
                     </div>
@@ -2665,6 +2665,23 @@
             }
             setTimeout(()=>window.print(),100);
         }
+
+        // --- Drag and Drop de Arquivos .cric ---
+        document.body.addEventListener('dragover', e => { e.preventDefault(); document.body.style.opacity = '0.7'; });
+        document.body.addEventListener('dragleave', e => { e.preventDefault(); document.body.style.opacity = '1'; });
+        document.body.addEventListener('drop', e => {
+            e.preventDefault(); 
+            document.body.style.opacity = '1';
+            const f = e.dataTransfer.files[0];
+            if(f && (f.name.endsWith('.cric') || f.name.endsWith('.csv'))) {
+                const rd = new FileReader();
+                rd.onload = ev => uiConfirm("Importar dados do arquivo arrastado? Os dados atuais serão substituídos.", () => executarProcessamentoCRIC(ev.target.result));
+                rd.readAsText(f);
+            } else if (f) {
+                uiAlert("Por favor, solte um arquivo .cric ou .csv válido.");
+            }
+        });
+
         init();
     </script>
 </body>
