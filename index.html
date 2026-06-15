@@ -31,6 +31,8 @@
             #printArea { display: block !important; width: 100%; }
             .page-break { page-break-after: always; break-after: page; }
             .no-break { break-inside: avoid; page-break-inside: avoid; }
+            .bg-tarde { background-color: #f3f4f6 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .print-cell-truncate { display: block; overflow: hidden; white-space: nowrap; text-overflow: clip; width: 100%; }
         }
     </style>
 </head>
@@ -51,13 +53,26 @@
                         <i class="fas fa-print mr-1"></i> PDF
                     </button>
                     <div class="absolute right-0 mt-0 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200">
-                        <a href="#" onclick="imprimirRelatorio('alunos')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Alunos</a>
+                        <a href="#" onclick="imprimirRelatorio('alunos')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Turmas</a>
                         <a href="#" onclick="imprimirRelatorio('professores')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Professores</a>
                         <a href="#" onclick="imprimirRelatorio('ambientes')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Ambientes</a>
                     </div>
                 </div>
 
                 <div class="w-px bg-green-500 mx-1 h-6"></div>
+
+                <div class="relative group">
+                    <button class="text-xs bg-teal-600 hover:bg-teal-700 text-white py-1 px-3 rounded shadow transition font-bold border border-teal-500 flex items-center mr-2">
+                        <i class="fas fa-palette mr-1"></i> Legenda
+                    </button>
+                    <div class="absolute right-0 mt-0 w-56 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 p-3 text-xs text-gray-700">
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-red-200 border-l-4 border-red-600 inline-block mr-2"></span> Restrição (Bloqueio)</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-yellow-200 border-l-4 border-yellow-500 inline-block mr-2"></span> Evitar Turno</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-gray-300 border-l-4 border-black inline-block mr-2"></span> Choque Prof (2 turmas)</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-gray-200 border-l-4 border-gray-500 inline-block mr-2"></span> Excesso de Carga</div>
+                        <div class="flex items-center"><span class="w-3 h-3 bg-orange-200 border-l-4 border-orange-600 inline-block mr-2"></span> Conflito de Sala</div>
+                    </div>
+                </div>
 
                 <button onclick="iniciarGeracaoAutomatica()" class="text-xs bg-purple-500 hover:bg-purple-600 text-white py-1 px-3 rounded shadow transition font-bold border border-purple-400 mr-1" title="Gerar Horário Automaticamente">
                     <i class="fas fa-magic mr-1"></i> Auto
@@ -135,7 +150,10 @@
                         <input type="number" id="inputDiscCarga" placeholder="Aulas" class="border p-2 rounded w-16 text-center text-xs focus:outline-none">
                         <input type="number" id="inputDiscSplits" placeholder="Blocos" class="border p-2 rounded w-20 text-center text-xs focus:outline-none" title="Número de blocos na semana (opcional)">
                         <div id="checkDiscAmb" class="check-grid flex-1 max-h-32 overflow-y-auto bg-gray-50 p-1 rounded border text-[10px]"></div>
-                        <button onclick="adicionarDisciplina()" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-xs h-full"><i class="fas fa-plus"></i></button>
+                        <div class="flex flex-col gap-1 h-full">
+                            <button onclick="salvarDisciplina()" id="btnSalvarDisc" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded text-xs flex-1" title="Salvar"><i class="fas fa-plus"></i></button>
+                            <button onclick="cancelarEdicaoDisc()" id="btnCancelEditDisc" class="hidden bg-gray-400 hover:bg-gray-500 text-white px-3 py-1 rounded text-xs flex-1" title="Cancelar"><i class="fas fa-times"></i></button>
+                        </div>
                     </div>
                 </div>
                 <div class="mt-2 border-t pt-2 group relative">
@@ -212,15 +230,35 @@
         </div>
 
         <div class="lg:col-span-8">
-            <div class="flex justify-end mb-2 gap-2">
-                <label class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 py-1 px-3 rounded shadow transition font-bold flex items-center border border-purple-300 cursor-pointer" title="Marcar/Desmarcar todas para Geração Automática">
-                    <input type="checkbox" id="chkToggleAutoAll" class="mr-2 accent-purple-600" checked onchange="toggleAllAuto(this.checked)"> <i class="fas fa-magic mr-1"></i> Selecionar Todas
-                </label>
-                <button onclick="toggleAllGrades()" id="btnToggleAll" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-3 rounded shadow transition font-bold flex items-center border border-gray-300">
-                    <i class="fas fa-expand-alt mr-2"></i> Expandir Tudo
-                </button>
+            <!-- Abas de Navegação -->
+            <div class="flex border-b border-gray-300 mb-4 bg-white rounded-t shadow-sm">
+                <button id="tabBtnTurmas" onclick="mudarAba('turmas')" class="py-2 px-4 border-b-2 border-purple-600 font-bold text-purple-700 flex-1 hover:bg-gray-50 transition"><i class="fas fa-users mr-2"></i> Turmas</button>
+                <button id="tabBtnProfs" onclick="mudarAba('profs')" class="py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-bold flex-1 hover:bg-gray-50 transition"><i class="fas fa-chalkboard-teacher mr-2"></i> Professores</button>
+                <button id="tabBtnAmbs" onclick="mudarAba('ambs')" class="py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-bold flex-1 hover:bg-gray-50 transition"><i class="fas fa-building mr-2"></i> Ambientes</button>
             </div>
-            <div id="containerGrades" class="space-y-8 pb-20"></div>
+
+            <!-- View Turmas -->
+            <div id="viewTurmas">
+                <div class="flex justify-end mb-2 gap-2">
+                    <label class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 py-1 px-3 rounded shadow transition font-bold flex items-center border border-purple-300 cursor-pointer" title="Marcar/Desmarcar todas para Geração Automática">
+                        <input type="checkbox" id="chkToggleAutoAll" class="mr-2 accent-purple-600" checked onchange="toggleAllAuto(this.checked)"> <i class="fas fa-magic mr-1"></i> Selecionar Todas
+                    </label>
+                    <button onclick="toggleAllGrades()" id="btnToggleAll" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-3 rounded shadow transition font-bold flex items-center border border-gray-300">
+                        <i class="fas fa-expand-alt mr-2"></i> Expandir Tudo
+                    </button>
+                </div>
+                <div id="containerGrades" class="space-y-8 pb-20"></div>
+            </div>
+
+            <!-- View Professores -->
+            <div id="viewProfs" class="hidden">
+                <div id="containerProfs" class="space-y-8 pb-20"></div>
+            </div>
+
+            <!-- View Ambientes -->
+            <div id="viewAmbs" class="hidden">
+                <div id="containerAmbs" class="space-y-8 pb-20"></div>
+            </div>
         </div>
     </div>
 
@@ -229,10 +267,20 @@
         <div class="bg-white rounded-lg shadow-xl p-6 w-[400px] max-w-full mx-4">
             <h3 class="text-lg font-bold mb-2 text-gray-800"><i class="fas fa-magic text-purple-600"></i> Geração Automática</h3>
             <p class="text-gray-600 mb-6 text-sm">Como deseja processar os horários já definidos na grade?</p>
-			<div class="mb-4">
+			
+            <div class="mb-4">
 				<label class="text-xs font-bold text-gray-600 block mb-1">Nº de Simulações (Precisão vs Tempo):</label>
 				<input type="number" id="inputIteracoes" value="600" min="100" max="5000" step="100" class="w-full border p-2 rounded text-sm focus:outline-none focus:border-purple-500">
 			</div>
+
+            <div class="mb-4 bg-gray-50 p-2 rounded border border-gray-200">
+                <label class="flex items-center text-xs font-bold text-gray-600 mb-1 cursor-pointer">
+                    <input type="checkbox" id="chkAutoDownload" class="mr-2 accent-purple-600" onchange="document.getElementById('inputAutoDownloadMin').disabled = !this.checked">
+                    Auto-backup (.cric) após (minutos):
+                </label>
+                <input type="number" id="inputAutoDownloadMin" value="15" min="1" disabled class="w-full border p-2 rounded text-sm focus:outline-none focus:border-purple-500 disabled:bg-gray-200 disabled:text-gray-400">
+                <p class="text-[9px] text-gray-500 mt-1 leading-tight">Faz o download sempre que achar uma grade com menos erros, a partir do tempo definido.</p>
+            </div>
 
             <div class="flex flex-col gap-3">
                 <button onclick="executarGeracaoAutomatica(true)" class="w-full bg-blue-600 text-white py-2.5 rounded hover:bg-blue-700 text-sm shadow transition font-bold flex items-center justify-center">
@@ -282,6 +330,9 @@
         let wakeLock = null;
         let bestTurGlobal = null;
         let turmasSelecionadasAuto = new Set();
+        let currentTab = 'turmas'; // Controle de abas
+        let editDiscNomeOriginal = ''; // Controle de edição de disciplinas
+        let flagInterromper = false;
 
         // FIX: geração de ID mais robusta, evitando colisões em importações rápidas
         const genId = () => Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,9);
@@ -416,10 +467,18 @@
 
         function salvar(r=true){
             localStorage.setItem('sge_ambientes',JSON.stringify(amb));localStorage.setItem('sge_disciplinas',JSON.stringify(disc));localStorage.setItem('sge_turmas',JSON.stringify(tur));localStorage.setItem('sge_professores',JSON.stringify(prof));
-            if(r){renderGrades();atualizarContadorNotificacoes();}
+            if(r){
+                renderGrades();
+                if(currentTab === 'profs') renderGradesProfessores();
+                if(currentTab === 'ambs') renderGradesAmbientes();
+                atualizarContadorNotificacoes();
+            }
         }
+
         function renderAll(){
             renderAmb();renderDisc();renderProfList();renderTurList();renderGrades();atualizarContadorNotificacoes();
+            if(currentTab === 'profs') renderGradesProfessores();
+            if(currentTab === 'ambs') renderGradesAmbientes();
         }
 
         function limparTudo(){uiConfirm("Apagar todos os dados?",()=>{amb=[];disc=[];prof=[];tur=[];invalidarUndo();salvar();renderAll();});}
@@ -464,18 +523,96 @@
             document.getElementById('checkDiscAmb').innerHTML = checkHtml;
         }
 
-        function adicionarDisciplina(){
+        function salvarDisciplina(){
             const n=document.getElementById('inputDisc').value.trim();
             const c=parseInt(document.getElementById('inputDiscCarga').value)||2;
             const splits=parseInt(document.getElementById('inputDiscSplits').value)||0;
             const ambsSel = Array.from(document.querySelectorAll('input[name="discAmbCheck"]:checked')).map(cb=>cb.value);
-            if(!n||disc.some(d=>d.nome===n))return uiAlert("Inválido ou Duplicado.");
-            disc.push({nome:n,carga:c,amb:ambsSel, splits:splits});
-            document.getElementById('inputDisc').value='';
-            document.getElementById('inputDiscSplits').value='';
-            document.querySelectorAll('input[name="discAmbCheck"]').forEach(cb=>cb.checked=false);
+            if(!n) return uiAlert("Nome inválido.");
+
+            if(editDiscNomeOriginal) {
+                if(n !== editDiscNomeOriginal && disc.some(d=>d.nome===n)) return uiAlert("Já existe outra disciplina com este nome.");
+                
+                const oldName = editDiscNomeOriginal;
+                const dObj = disc.find(d => d.nome === oldName);
+                if(dObj) {
+                    dObj.nome = n;
+                    dObj.carga = c;
+                    dObj.amb = ambsSel;
+                    dObj.splits = splits;
+                }
+
+                if(n !== oldName) {
+                    prof.forEach(p => {
+                        const idx = p.disciplinas.indexOf(oldName);
+                        if(idx > -1) p.disciplinas[idx] = n;
+                    });
+
+                    tur.forEach(t => {
+                        const idx = t.disciplinas.indexOf(oldName);
+                        if(idx > -1) t.disciplinas[idx] = n;
+
+                        if(t.professores && t.professores[oldName] !== undefined) {
+                            t.professores[n] = t.professores[oldName];
+                            delete t.professores[oldName];
+                        }
+                        if(t.vinculos && t.vinculos[oldName] !== undefined) {
+                            t.vinculos[n] = t.vinculos[oldName];
+                            delete t.vinculos[oldName];
+                        }
+
+                        DIAS.forEach((dayName, d) => Object.keys(t.horario[d]).forEach(k => {
+                            const val = t.horario[d][k];
+                            if(val) {
+                                t.horario[d][k] = val.split('&').map(aloc => {
+                                    const parts = aloc.split('|');
+                                    if(parts[1] === oldName) parts[1] = n;
+                                    return parts.join('|');
+                                }).join('&');
+                            }
+                        }));
+                    });
+                }
+                cancelarEdicaoDisc();
+            } else {
+                if(disc.some(d=>d.nome===n)) return uiAlert("Já existe uma disciplina com este nome.");
+                disc.push({nome:n,carga:c,amb:ambsSel, splits:splits});
+                cancelarEdicaoDisc();
+            }
             salvar();renderAll();
         }
+
+        function editarDisciplina(n) {
+            const d = disc.find(x => x.nome === n);
+            if(!d) return;
+            editDiscNomeOriginal = d.nome;
+            document.getElementById('inputDisc').value = d.nome;
+            document.getElementById('inputDiscCarga').value = d.carga || 2;
+            document.getElementById('inputDiscSplits').value = d.splits || 0;
+            
+            document.querySelectorAll('input[name="discAmbCheck"]').forEach(cb => {
+                cb.checked = d.amb && d.amb.includes(cb.value);
+            });
+
+            const btnSalvar = document.getElementById('btnSalvarDisc');
+            if(btnSalvar) btnSalvar.innerHTML = '<i class="fas fa-check"></i>';
+            const btnCancel = document.getElementById('btnCancelEditDisc');
+            if(btnCancel) btnCancel.classList.remove('hidden');
+        }
+
+        function cancelarEdicaoDisc() {
+            editDiscNomeOriginal = '';
+            document.getElementById('inputDisc').value = '';
+            document.getElementById('inputDiscCarga').value = '';
+            document.getElementById('inputDiscSplits').value = '';
+            document.querySelectorAll('input[name="discAmbCheck"]').forEach(cb => cb.checked = false);
+            
+            const btnSalvar = document.getElementById('btnSalvarDisc');
+            if(btnSalvar) btnSalvar.innerHTML = '<i class="fas fa-plus"></i>';
+            const btnCancel = document.getElementById('btnCancelEditDisc');
+            if(btnCancel) btnCancel.classList.add('hidden');
+        }
+
         function removerDisciplina(n){uiConfirm("Remover?",()=>{disc=disc.filter(d=>d.nome!==n);salvar();renderAll();});}
         
         function renderDisc(){
@@ -487,7 +624,7 @@
                     if (base && !base.isGeneric) return `${base.obj.tipo} -> ${room}`;
                     return room;
                 }).join(' + ');
-                return `<span class="bg-purple-100 px-2 py-1 rounded text-xs border border-purple-200">${d.nome} (${d.carga}h | ${d.splits?d.splits+' bloco(s)':'Auto'} | ${ambsFormatados||'-'}) <i onclick="removerDisciplina('${d.nome}')" class="fas fa-times cursor-pointer"></i></span>`;
+                return `<span class="bg-purple-100 px-2 py-1 rounded text-xs border border-purple-200">${d.nome} (${d.carga}h | ${d.splits?d.splits+' bloco(s)':'Auto'} | ${ambsFormatados||'-'}) <i onclick="editarDisciplina('${d.nome}')" class="fas fa-edit cursor-pointer text-blue-500 ml-1" title="Editar"></i> <i onclick="removerDisciplina('${d.nome}')" class="fas fa-times cursor-pointer text-red-500 ml-1" title="Excluir"></i></span>`;
             }).join('');
 
             document.getElementById('checkProfDisc').innerHTML=disc.map(d=>`<label class="flex items-center space-x-1 hover:bg-gray-100 p-1 rounded"><input type="checkbox" name="profDiscCheck" value="${d.nome}" class="accent-indigo-600"><span>${d.nome}</span></label>`).join('');
@@ -904,6 +1041,30 @@
             return html + '</div>';
         }
 
+        // --- Lógica de Drag and Drop (Arrastar Aulas) ---
+        let draggedSlot = null;
+        function handleDragStart(ev, tid, d, tr, h) { draggedSlot = {tid, d, tr, h}; ev.dataTransfer.effectAllowed = "move"; ev.target.style.opacity = '0.4'; }
+        function handleDragEnd(ev) { ev.target.style.opacity = '1'; draggedSlot = null; }
+        function handleDragOver(ev) { ev.preventDefault(); ev.dataTransfer.dropEffect = "move"; }
+        function handleDrop(ev, tidDest, dDest, trDest, hDest) {
+            ev.preventDefault();
+            if(!draggedSlot) return;
+            const {tid: tidOrig, d: dOrig, tr: trOrig, h: hOrig} = draggedSlot;
+            if(tidOrig === tidDest && dOrig === dDest && trOrig === trDest && hOrig === hDest) return;
+            
+            const tOrig = tur.find(x => x.id === tidOrig); const tDest = tur.find(x => x.id === tidDest);
+            if (!tOrig || !tDest) return;
+            
+            const kOrig = `${trOrig}${hOrig}`; const kDest = `${trDest}${hDest}`;
+            const valOrig = tOrig.horario[dOrig][kOrig]; const valDest = tDest.horario[dDest][kDest];
+            
+            // Faz a troca (swap) dos horários
+            tOrig.horario[dOrig][kOrig] = valDest; 
+            tDest.horario[dDest][kDest] = valOrig;
+            
+            invalidarUndo(); salvar();
+        }
+
         let expandedGrades = new Set();
         
         function toggleTurmaAuto(id) {
@@ -933,6 +1094,133 @@
             renderGrades();
         }
 
+        // Nova Lógica de Abas
+        function mudarAba(aba) {
+            currentTab = aba;
+            document.getElementById('tabBtnTurmas').className = aba === 'turmas' ? 'py-2 px-4 border-b-2 border-purple-600 font-bold text-purple-700 flex-1 hover:bg-gray-50 transition' : 'py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-bold flex-1 hover:bg-gray-50 transition';
+            document.getElementById('tabBtnProfs').className = aba === 'profs' ? 'py-2 px-4 border-b-2 border-blue-600 font-bold text-blue-700 flex-1 hover:bg-gray-50 transition' : 'py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-bold flex-1 hover:bg-gray-50 transition';
+            document.getElementById('tabBtnAmbs').className = aba === 'ambs' ? 'py-2 px-4 border-b-2 border-yellow-600 font-bold text-yellow-700 flex-1 hover:bg-gray-50 transition' : 'py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-bold flex-1 hover:bg-gray-50 transition';
+
+            document.getElementById('viewTurmas').classList.toggle('hidden', aba !== 'turmas');
+            document.getElementById('viewProfs').classList.toggle('hidden', aba !== 'profs');
+            document.getElementById('viewAmbs').classList.toggle('hidden', aba !== 'ambs');
+
+            if(aba === 'profs') renderGradesProfessores();
+            if(aba === 'ambs') renderGradesAmbientes();
+        }
+
+        function renderGradesProfessores() {
+            const c = document.getElementById('containerProfs');
+            const sorted = [...prof].sort((a,b)=>a.nome.localeCompare(b.nome));
+            c.innerHTML = sorted.map(px => {
+                let h = `<div class="bg-white rounded shadow border mb-6"><div class="bg-gray-50 px-4 py-2 border-b font-bold text-blue-800">${px.nome}</div><div class="table-container"><table class="w-full text-xs text-center border-collapse"><thead class="bg-gray-100"><tr><th class="border p-1 w-8">T</th><th class="border p-1 w-8">H</th>${DIAS.map(d=>`<th class="border p-1" style="width: 18.4%;">${d}</th>`).join('')}</tr></thead><tbody>`;
+                TURNOS.forEach(tr => {
+                    HORARIOS.forEach((hr, ix) => {
+                        h += `<tr>`;
+                        if(ix===0) h+= `<td rowspan="${NUM_AULAS}" class="border p-1 font-bold ${tr.c}">${tr.id}</td>`;
+                        h += `<td class="border p-1 font-mono">${hr}</td>`;
+                        DIAS.forEach((dayName, dx) => {
+                            const k = `${tr.id}${hr}`;
+                            let cellHTML = '-';
+                            let isRestrito = px.restricoes && px.restricoes.includes(`${dx}-${tr.id}`);
+                            let isEvitar = px.evitar && px.evitar.includes(`${dx}-${tr.id}`);
+
+                            let alocacoes = [];
+                            tur.forEach(t => {
+                                if(!t.slotsAtivos.includes(`${dx}-${tr.id}`)) return;
+                                const val = t.horario[dx][k];
+                                if(val) {
+                                    val.split('&').forEach(aloc => {
+                                        if(aloc.split('|')[0].split(',').filter(Boolean).includes(String(px.id))) {
+                                            alocacoes.push({turma: t.nome, dn: aloc.split('|')[1], sl: aloc.split('|')[2]});
+                                        }
+                                    });
+                                }
+                            });
+
+                            if (alocacoes.length > 0) {
+                                let bg = alocacoes.length > 1 ? 'bg-red-200 border-l-4 border-red-600' : 'bg-blue-50';
+                                cellHTML = `<div class="p-1 ${bg} rounded text-[10px] leading-tight text-center">` + alocacoes.map(a => `<b class="text-gray-800">${a.turma}</b><br><span class="text-indigo-700 font-bold">${a.dn}</span><br><span class="text-gray-500">${a.sl||''}</span>`).join('<hr class="my-1 border-gray-300">') + `</div>`;
+                            } else if (isRestrito) {
+                                cellHTML = `<div class="bg-red-100 text-red-500 p-1 text-[10px] rounded h-full flex items-center justify-center font-bold">Bloqueado</div>`;
+                            } else if (isEvitar) {
+                                cellHTML = `<div class="bg-yellow-100 text-yellow-600 p-1 text-[10px] rounded h-full flex items-center justify-center font-bold">Evitar</div>`;
+                            }
+
+                            h += `<td class="border p-1 align-middle">${cellHTML}</td>`;
+                        });
+                        h += `</tr>`;
+                    });
+                });
+                h += `</tbody></table></div></div>`;
+                return h;
+            }).join('');
+        }
+
+        function renderGradesAmbientes() {
+            const getInstancias = a => {
+                if(a.qtd <= 1) return [];
+                if(a.nomes && a.nomes.length === a.qtd) return [...a.nomes];
+                return Array.from({length:a.qtd},(_,i)=>`${a.tipo} ${i+1}`);
+            };
+            const itens = [];
+            amb.slice().sort((a,b)=>a.tipo.localeCompare(b.tipo)).forEach(a=>{
+                const instancias = getInstancias(a);
+                itens.push({nome:a.tipo, label:a.qtd>1?`${a.tipo} (Grupo / Qualquer)`:a.tipo, cap:a.cap, qtd:a.qtd, isGrupo:true, instancias});
+                instancias.forEach(ns=>itens.push({nome:ns, label:`${a.tipo} -> ${ns}`, cap:a.cap, qtd:1, isGrupo:false, instancias:[]}));
+            });
+
+            const c = document.getElementById('containerAmbs');
+            if(itens.length === 0) {
+                c.innerHTML = '<div class="text-center p-6 text-gray-500 font-bold">Nenhum ambiente cadastrado.</div>';
+                return;
+            }
+
+            c.innerHTML = itens.map(item => {
+                const usaAmbiente = salaStr => {
+                    const salas = String(salaStr||'').split('+').map(s=>s.trim()).filter(Boolean);
+                    if(item.isGrupo) return salas.some(s=>s===item.nome || item.instancias.includes(s));
+                    return salas.includes(item.nome);
+                };
+
+                let h = `<div class="bg-white rounded shadow border mb-6"><div class="bg-gray-50 px-4 py-2 border-b font-bold text-yellow-800">${item.label} <span class="font-normal text-[10px] text-gray-500 ml-2">Cap: ${item.cap} | Qtd: ${item.qtd}</span></div><div class="table-container"><table class="w-full text-xs text-center border-collapse"><thead class="bg-gray-100"><tr><th class="border p-1 w-8">T</th><th class="border p-1 w-8">H</th>${DIAS.map(d=>`<th class="border p-1" style="width: 18.4%;">${d}</th>`).join('')}</tr></thead><tbody>`;
+                TURNOS.forEach(tr => {
+                    HORARIOS.forEach((hr, ix) => {
+                        h += `<tr>`;
+                        if(ix===0) h+= `<td rowspan="${NUM_AULAS}" class="border p-1 font-bold ${tr.c}">${tr.id}</td>`;
+                        h += `<td class="border p-1 font-mono">${hr}</td>`;
+                        DIAS.forEach((dayName, dx) => {
+                            const k = `${tr.id}${hr}`;
+                            let achadas = [];
+                            tur.forEach(t=>{
+                                if(!t.slotsAtivos.includes(`${dx}-${tr.id}`)) return;
+                                const val=t.horario[dx][k];
+                                if(!val) return;
+                                val.split('&').forEach(aloc=>{
+                                    const parts=aloc.split('|'); const pid=parts[0], dn=parts[1], sl=parts[2];
+                                    if(usaAmbiente(sl)) {
+                                        const profsTxt = String(pid||'').split(',').filter(Boolean).map(id=>{const pf=prof.find(x=>x.id==id);return pf?formatarNome(pf.nome):'?';}).join(' + ');
+                                        achadas.push({turma:t.nome, dn, profs:profsTxt, sala:sl});
+                                    }
+                                });
+                            });
+
+                            let cellHTML = '-';
+                            if(achadas.length > 0) {
+                                const conflito = item.isGrupo ? achadas.length > item.qtd : achadas.length > 1;
+                                let bg = conflito ? 'bg-red-200 border-l-4 border-red-600' : 'bg-yellow-50';
+                                cellHTML = `<div class="p-1 ${bg} rounded text-[10px] leading-tight text-center">` + achadas.map(a => `<b class="text-gray-800">${a.turma}</b><br><span class="text-indigo-700 font-bold">${a.dn}</span><br><span class="text-gray-500 italic">${a.profs}</span>`).join('<hr class="my-1 border-gray-300">') + `</div>`;
+                            }
+                            h += `<td class="border p-1 align-middle">${cellHTML}</td>`;
+                        });
+                        h += `</tr>`;
+                    });
+                });
+                h += `</tbody></table></div></div>`;
+                return h;
+            }).join('');
+        }
+
         function renderGrades(){
             const btn = document.getElementById('btnToggleAll');
             if(btn && tur.length > 0) {
@@ -943,6 +1231,7 @@
             const c=document.getElementById('containerGrades');
             const sorted=[...tur].sort((a,b)=>(a.curso||'').localeCompare(b.curso||'')||a.nome.localeCompare(b.nome));
             c.innerHTML=sorted.map(t=>{
+                const cnt = contarAlocadasTurma(t);
                 const tG=TURNOS.filter(tr=>t.slotsAtivos.some(s=>s.endsWith(`-${tr.id}`)));
                 const isExp = expandedGrades.has(t.id);
                 const isAuto = turmasSelecionadasAuto.has(t.id);
@@ -1009,22 +1298,34 @@
                             }
                             
                             const labelD = dn ? `<div class="font-bold text-[10px] text-indigo-700 uppercase text-center border-b border-blue-200 pb-0.5 mb-0.5 w-full truncate" title="${dn}">${dn}</div>` : '';
-                            const borderCls = idx > 0 ? 'border-t border-gray-300 mt-1 pt-1' : '';
                             
-                            cellHTML += `<div class="${borderCls}">${labelD}<select onchange="atualizarHorario('${t.id}',${dx},'${tr.id}',${hr},this,${idx})" class="w-full bg-transparent border-none p-0 focus:ring-0 font-semibold text-center text-[10px]">${op}</select>${selS}</div>`;
+                            let wrapperClasses = idx > 0 ? 'border-t border-gray-300 mt-1 pt-1 ' : 'p-0.5 rounded transition-colors duration-200 ';
+                            let allocTitle = '';
+                            
+                            if(aloc) {
+                                const isOcupado = verificarConflitoProfessorOcupado(pid, dx, tr.id, hr, t.id, idx);
+                                const isRestrito = restricoesIgnoradas(pid, dx, tr.id).length > 0;
+                                const isEvitar = temEvitar(pid, dx, tr.id);
+                                const isSalaErr = !ignoreAmb && verificarSala(sl, dx, tr.id, hr, t.id, idx);
+                                const cargaLim = disc.find(x => x.nome === dn)?.carga || 2;
+                                const isExcedente = (cnt[dn] || 0) > cargaLim;
+
+                                if (isOcupado) { wrapperClasses += 'bg-gray-300 border-l-4 border-black'; allocTitle = isOcupado; }
+                                else if (isRestrito) { wrapperClasses += 'bg-red-200 border-l-4 border-red-600'; allocTitle = 'Professor bloqueado neste horário'; }
+                                else if (isSalaErr) { wrapperClasses += 'bg-orange-200 border-l-4 border-orange-600'; allocTitle = isSalaErr; }
+                                else if (isEvitar) { wrapperClasses += 'bg-yellow-200 border-l-4 border-yellow-500'; allocTitle = 'Professor prefere evitar este horário'; }
+                                else if (isExcedente) { wrapperClasses += 'bg-gray-200 border-l-4 border-gray-500'; allocTitle = `Excedeu limite de aulas (${cnt[dn]}/${cargaLim})`; }
+                            }
+                            
+                            cellHTML += `<div class="${wrapperClasses}" title="${allocTitle}">${labelD}<select onchange="atualizarHorario('${t.id}',${dx},'${tr.id}',${hr},this,${idx})" class="w-full bg-transparent border-none p-0 focus:ring-0 font-semibold text-center text-[10px]">${op}</select>${selS}</div>`;
                         }
                         
-                        const restricoesDaCelula = val ? [...new Map(val.split('&').flatMap(aloc=>restricoesIgnoradas(aloc.split('|')[0], dx, tr.id)).map(p=>[p.id,p])).values()] : [];
-                        if(restricoesDaCelula.length) {
-                            cellHTML += `<div class="mt-1 text-[9px] text-yellow-800 bg-yellow-200 border border-yellow-400 rounded px-1 font-bold text-center" title="Aula marcada em horário que o professor havia solicitado bloquear.">Restrição ignorada: ${restricoesDaCelula.map(p=>formatarNome(p.nome)).join(', ')}</div>`;
-                        }
-
                         if (!val) {
                             cellHTML += getMotivosBuraco(t, dx, tr.id, hr);
                         }
                         
-                        const cellBg = restricoesDaCelula.length ? 'bg-yellow-100 border-yellow-400' : (val ? 'bg-blue-50' : '');
-                        h+=`<td class="border p-1 ${cellBg} align-middle">${cellHTML}</td>`;
+                        const cellBg = val ? 'bg-blue-50' : '';
+                        h+=`<td class="border p-1 ${cellBg} align-middle cursor-move hover:shadow-inner transition-all" draggable="true" ondragstart="handleDragStart(event, '${t.id}', ${dx}, '${tr.id}', ${hr})" ondragend="handleDragEnd(event)" ondragover="handleDragOver(event)" ondragenter="this.classList.add('bg-blue-200','opacity-80')" ondragleave="this.classList.remove('bg-blue-200','opacity-80')" ondrop="this.classList.remove('bg-blue-200','opacity-80'); handleDrop(event, '${t.id}', ${dx}, '${tr.id}', ${hr})">${cellHTML}</td>`;
                     });
                     h+=`</tr>`;
                 });});h+=`</tbody></table></div></div>`;
@@ -1806,8 +2107,11 @@
             let bestTur = null;
             let minScore = Infinity; 
 
-			// NOVO: Captura o valor do input
+			// NOVO: Captura o valor do input e do Auto-Download
 			const numIteracoes = parseInt(document.getElementById('inputIteracoes').value) || 600;
+            const enableAutoDownload = document.getElementById('chkAutoDownload') && document.getElementById('chkAutoDownload').checked;
+            const autoDownloadMin = parseInt(document.getElementById('inputAutoDownloadMin').value) || 15;
+            const startTimeMs = Date.now();
 
 			flagInterromper = false;
 			const btn = document.getElementById('btnPararGen');
@@ -1921,8 +2225,6 @@
                             const found = orderedSlots[0] || null;
 
                             if(!found) {
-                                planoInterrompido = true;
-                                break;
                                 let remaining = b;
                                 // FIX #4: clona params.missing para não corromper entre iterações do fallback
                                 let paramsFallback = params.map(p => ({...p}));
@@ -2030,12 +2332,21 @@
                 const currentPenalties = calcularPenalidade(tmp);
                 const currentMissing = contarFaltas(tmp);
                 const currentScore = (currentMissing * 1000000) + currentPenalties;
+                
                 if(currentScore < minScore) { 
                     minScore = currentScore; 
                     bestTur = tmp; 
                     bestTurGlobal = tmp;
                     document.getElementById('loadingBest').innerText = `Melhor arranjo encontrado: ${currentMissing} faltas`; // Atualiza o melhor resultado encontrado a cada melhoria significativa (redução de faltas)
                     document.getElementById('btnDownloadCurrent').classList.remove('hidden');
+
+                    // ADICIONADO: Lógica de Auto Download
+                    if (enableAutoDownload) {
+                        const elapsedMin = (Date.now() - startTimeMs) / 60000;
+                        if (elapsedMin >= autoDownloadMin) {
+                            exportarCRIC(bestTurGlobal, true);
+                        }
+                    }
                 }
                 
                 // PARADA RÁPIDA: Se as faltas zeraram, a grade já não tem avisos ou choques 
@@ -2101,7 +2412,7 @@
             if (bestTurGlobal) exportarCRIC(bestTurGlobal);
         }
 
-        function exportarCRIC(lista = tur){
+        function exportarCRIC(lista = tur, isAutoBackup = false){
             let cric="TIPO§NOME§D1§D2§D3§D4§D5§D6\n";
             amb.forEach(a=>{
                 const nomesStr = (a.nomes && a.nomes.length) ? a.nomes.join('|') : '';
@@ -2132,7 +2443,9 @@
                     if(val){val.split('&').forEach(aloc=>{const parts=aloc.split('|');const p=parts[0];const dn=parts[1];const sl=parts[2];const prNs=p.split(',').filter(Boolean).map(id=>prof.find(x=>x.id==id)?.nome||'?').join('+');cric+=`ALOC§${t.nome}§${d}§${k[0]}§${k[1]}§${prNs}|${dn}|${sl}\n`;})}
                 }
             })})});
-            const b=new Blob([cric],{type:'text/cric'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;const dh=new Date().toLocaleString('pt-BR').replace(/[\/:]/g,'-').replace(', ','_');a.download=`CHICri_${dh}.cric`;a.click();
+            const b=new Blob([cric],{type:'text/cric'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;const dh=new Date().toLocaleString('pt-BR').replace(/[\/:]/g,'-').replace(', ','_');
+            a.download=`${isAutoBackup ? 'AutoBackup_' : ''}CHICri_${dh}.cric`;
+            a.click();
         }
 
         function executarProcessamentoCRIC(texto) {
@@ -2244,6 +2557,13 @@
                     }
                 }
             });
+
+            // Atualiza as seleções do Auto Gen com os novos IDs importados
+            turmasSelecionadasAuto.clear();
+            tur.forEach(t => turmasSelecionadasAuto.add(t.id));
+            const chkAll = document.getElementById('chkToggleAutoAll');
+            if(chkAll) chkAll.checked = true;
+
             salvar(); renderAll();
         }
 
@@ -2295,12 +2615,12 @@
                 Object.keys(grp).sort().forEach(c=>{
                     p.innerHTML+=`<h2 class="text-xl font-bold mt-4 border-b border-black">${c}</h2>`;
                     grp[c].sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(t=>{
-                        p.innerHTML+=`<div class="mb-4 border border-gray-400 no-break page-break"><div class="bg-gray-200 font-bold p-1 text-center">${t.nome}</div><table class="w-full text-xs text-center border-collapse" style="table-layout: fixed;">${header()}<tbody>${[...TURNOS].filter(tr=>t.slotsAtivos.some(s=>s.endsWith(`-${tr.id}`))).map(tr=>HORARIOS.map((h,ix)=>`<tr>${ix===0?`<td rowspan="${NUM_AULAS}" class="border font-bold">${tr.id}</td>`:''}<td class="border">${h}</td>${DIAS.map((dayName,dx)=>{if(!t.slotsAtivos.includes(`${dx}-${tr.id}`))return '<td class="border bg-gray-300"></td>';const val=t.horario[dx][`${tr.id}${h}`];if(!val)return '<td class="border">-</td>';const txt=val.split('&').map(aloc=>{const parts=aloc.split('|');const pid=parts[0],dn=parts[1],sl=parts[2];return `<div class="mb-1 ${val.includes('&')?'border-b border-gray-300 pb-1':''}"><span class="font-bold">${dn}</span><br><span class="font-normal italic">${profsTxt(pid)}</span><br><span class="text-[9px] bg-gray-100 rounded px-1 ${ignoreAmb?'hidden':''}">${sl}</span></div>`;}).join('');return `<td class="border align-middle">${txt}</td>`;}).join('')}</tr>`).join('')).join('')}</tbody></table></div>`;
+                        p.innerHTML+=`<div class="mb-4 border border-gray-400 no-break page-break"><div class="bg-gray-200 font-bold p-1 text-center">${t.nome}</div><table class="w-full text-xs text-center border-collapse" style="table-layout: fixed;">${header()}<tbody>${[...TURNOS].filter(tr=>t.slotsAtivos.some(s=>s.endsWith(`-${tr.id}`))).map(tr=>HORARIOS.map((h,ix)=>`<tr class="${tr.id==='T'?'bg-tarde':''}">${ix===0?`<td rowspan="${NUM_AULAS}" class="border font-bold">${tr.id}</td>`:''}<td class="border">${h}</td>${DIAS.map((dayName,dx)=>{if(!t.slotsAtivos.includes(`${dx}-${tr.id}`))return '<td class="border bg-gray-300"></td>';const val=t.horario[dx][`${tr.id}${h}`];if(!val)return '<td class="border">-</td>';const txt=val.split('&').map(aloc=>{const parts=aloc.split('|');const pid=parts[0],dn=parts[1],sl=parts[2];return `<div class="mb-1 ${val.includes('&')?'border-b border-gray-300 pb-1':''}"><div class="print-cell-truncate font-bold">${dn}</div><div class="print-cell-truncate font-normal italic">${profsTxt(pid)}</div><div class="print-cell-truncate text-[9px] bg-gray-100 rounded px-1 ${ignoreAmb?'hidden':''}">${sl}</div></div>`;}).join('');return `<td class="border align-middle" style="max-width: 0;">${txt}</td>`;}).join('')}</tr>`).join('')).join('')}</tbody></table></div>`;
                     });
                 });
             } else if(tipo==='professores') {
                 prof.sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(px=>{
-                    p.innerHTML+=`<div class="mb-4 border border-gray-400 no-break page-break"><div class="bg-gray-200 font-bold p-1">${px.nome}</div><table class="w-full text-xs text-center border-collapse" style="table-layout: fixed;">${header()}<tbody>${TURNOS.map(tr=>HORARIOS.map((h,ix)=>`<tr>${ix===0?`<td rowspan="${NUM_AULAS}" class="border font-bold">${tr.id}</td>`:''}<td class="border">${h}</td>${DIAS.map((dayName,dx)=>{const k=`${tr.id}${h}`;let cell='-';for(let t of tur){if(!t.slotsAtivos.includes(`${dx}-${tr.id}`)) continue; const val=t.horario[dx][k];if(val&&val.split('&').some(aloc=>aloc.split('|')[0].split(',').filter(Boolean).includes(String(px.id)))){const aloc=val.split('&').find(a=>a.split('|')[0].split(',').filter(Boolean).includes(String(px.id)));const parts=aloc.split('|');const dn=parts[1];const sl=parts[2];cell=`<b>${t.nome}</b><br>${dn}<br>${ignoreAmb?'':sl}`;break;}}return `<td class="border">${cell}</td>`;}).join('')}</tr>`).join('')).join('')}</tbody></table></div>`;
+                    p.innerHTML+=`<div class="mb-4 border border-gray-400 no-break page-break"><div class="bg-gray-200 font-bold p-1">${px.nome}</div><table class="w-full text-xs text-center border-collapse" style="table-layout: fixed;">${header()}<tbody>${TURNOS.map(tr=>HORARIOS.map((h,ix)=>`<tr class="${tr.id==='T'?'bg-tarde':''}">${ix===0?`<td rowspan="${NUM_AULAS}" class="border font-bold">${tr.id}</td>`:''}<td class="border">${h}</td>${DIAS.map((dayName,dx)=>{const k=`${tr.id}${h}`;let cell='-';for(let t of tur){if(!t.slotsAtivos.includes(`${dx}-${tr.id}`)) continue; const val=t.horario[dx][k];if(val&&val.split('&').some(aloc=>aloc.split('|')[0].split(',').filter(Boolean).includes(String(px.id)))){const aloc=val.split('&').find(a=>a.split('|')[0].split(',').filter(Boolean).includes(String(px.id)));const parts=aloc.split('|');const dn=parts[1];const sl=parts[2];cell=`<div class="print-cell-truncate"><b>${t.nome}</b></div><div class="print-cell-truncate">${dn}</div>${ignoreAmb?'':`<div class="print-cell-truncate text-[9px]">${sl}</div>`}`;break;}}return `<td class="border align-middle" style="max-width: 0;">${cell}</td>`;}).join('')}</tr>`).join('')).join('')}</tbody></table></div>`;
                 });
             } else if(tipo==='ambientes') {
                 const getInstancias = a => {
@@ -2337,10 +2657,10 @@
                         });
                         if(!achadas.length) return '<td class="border">-</td>';
                         const conflito = item.isGrupo ? achadas.length > item.qtd : achadas.length > 1;
-                        const txt = achadas.map((a,ix)=>`<div class="${ix>0?'border-t border-gray-300 mt-1 pt-1':''}"><b>${a.turma}</b><br>${a.dn}<br><i>${a.profs}</i><br><span class="text-[9px]">${a.sala}</span></div>`).join('');
-                        return `<td class="border align-top ${conflito?'bg-red-100 text-red-800 font-semibold':''}">${txt}</td>`;
+                        const txt = achadas.map((a,ix)=>`<div class="${ix>0?'border-t border-gray-300 mt-1 pt-1':''}"><div class="print-cell-truncate"><b>${a.turma}</b></div><div class="print-cell-truncate">${a.dn}</div><div class="print-cell-truncate italic">${a.profs}</div><div class="print-cell-truncate text-[9px]">${a.sala}</div></div>`).join('');
+                        return `<td class="border align-top ${conflito?'bg-red-100 text-red-800 font-semibold':''}" style="max-width: 0;">${txt}</td>`;
                     };
-                    p.innerHTML+=`<div class="mb-4 border border-gray-400 no-break page-break"><div class="bg-gray-200 font-bold p-1">${item.label} <span class="font-normal text-[10px]">Cap. ${item.cap} | Qtd. ${item.qtd}${item.isGrupo&&item.instancias.length?' | '+item.instancias.join(', '):''}</span></div><table class="w-full text-xs text-center border-collapse" style="table-layout: fixed;">${header()}<tbody>${TURNOS.map(tr=>HORARIOS.map((h,ix)=>`<tr>${ix===0?`<td rowspan="${NUM_AULAS}" class="border font-bold">${tr.id}</td>`:''}<td class="border">${h}</td>${DIAS.map((dayName,dx)=>cellAmb(dx,tr,h)).join('')}</tr>`).join('')).join('')}</tbody></table></div>`;
+                    p.innerHTML+=`<div class="mb-4 border border-gray-400 no-break page-break"><div class="bg-gray-200 font-bold p-1">${item.label} <span class="font-normal text-[10px]">Cap. ${item.cap} | Qtd. ${item.qtd}${item.isGrupo&&item.instancias.length?' | '+item.instancias.join(', '):''}</span></div><table class="w-full text-xs text-center border-collapse" style="table-layout: fixed;">${header()}<tbody>${TURNOS.map(tr=>HORARIOS.map((h,ix)=>`<tr class="${tr.id==='T'?'bg-tarde':''}">${ix===0?`<td rowspan="${NUM_AULAS}" class="border font-bold">${tr.id}</td>`:''}<td class="border">${h}</td>${DIAS.map((dayName,dx)=>cellAmb(dx,tr,h)).join('')}</tr>`).join('')).join('')}</tbody></table></div>`;
                 });
             }
             setTimeout(()=>window.print(),100);
