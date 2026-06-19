@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CHICri - Cálculo de Horários IFSC Criciúma v10.28</title>
+    <title>CHICri - Cálculo de Horários IFSC Criciúma v10.29</title>
 	<link rel="icon" href="https://i.ibb.co/qFgNh0LT/CHICri.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -23,11 +23,14 @@
         .env-select { -webkit-appearance: none; -moz-appearance: none; text-indent: 1px; text-overflow: ''; }
         
         #printArea { display: none; }
+        body.modo-tela-extra nav { display: none !important; }
+        body.modo-tela-extra .painel-config { display: none; }
+        body.modo-tela-extra .painel-horarios { grid-column: 1 / -1; }
         
         @media print {
             @page { size: landscape; margin: 10mm; }
             body { background-color: white; margin: 0; padding: 0; }
-            nav, .container, #customModal, #reportModal, #loadingOverlay, #autoGenModal { display: none !important; }
+            nav, .container, #customModal, #reportModal, #ambSlotModal, #loadingOverlay, #autoGenModal { display: none !important; }
             #printArea { display: block !important; width: 100%; }
             .page-break { page-break-after: always; break-after: page; }
             .no-break { break-inside: avoid; page-break-inside: avoid; }
@@ -40,13 +43,43 @@
 
     <nav class="bg-green-700 text-white p-3 shadow-lg sticky top-0 z-40">
         <div class="container mx-auto flex flex-wrap justify-between items-center gap-2">
-            <h1 class="text-lg font-bold"><i class="fas fa-calendar-alt mr-2"></i>CHICri v10.28</h1>
+            <h1 class="text-lg font-bold"><i class="fas fa-calendar-alt mr-2"></i>CHICri v10.29</h1>
             
             <div class="flex gap-2 items-center">
                 <div class="flex items-center bg-green-800 rounded px-2 py-1 border border-green-600 mr-2" title="Quantidade de aulas por turno">
                     <i class="fas fa-clock mr-1 text-xs text-green-300"></i>
                     <input type="number" id="cfgAulas" min="1" max="10" value="4" class="w-8 text-center text-xs bg-transparent text-white focus:outline-none font-bold" onchange="atualizarConfigAulas(this.value)">
                 </div>
+
+                <div class="relative group">
+                    <button class="text-xs bg-green-800 hover:bg-green-900 text-white py-1 px-3 rounded shadow transition font-bold border border-green-600 flex items-center mr-2">
+                        <i class="fas fa-sliders-h mr-1"></i> Pesos
+                    </button>
+                    <div class="absolute right-0 mt-0 w-80 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 p-3 text-xs text-gray-700">
+                        <div class="font-bold text-gray-700 mb-2">Pesos das restrições globais</div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <label>Bloqueio ignorado<input id="pesoRestricao" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('restricao', this.value)"></label>
+                            <label>Evitar turno<input id="pesoEvitar" type="number" min="0" step="100" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('evitar', this.value)"></label>
+                            <label>Manhã + noite<input id="pesoManhaNoite" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('manhaNoiteMesmoDia', this.value)"></label>
+                            <label>3 turnos no dia<input id="pesoTresTurnos" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('tresTurnos', this.value)"></label>
+                            <label>Noite + manhã seg.<input id="pesoNoiteManha" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('noiteManha', this.value)"></label>
+                            <label>Todos os dias<input id="pesoTodosDias" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('todosDias', this.value)"></label>
+                            <label>Troca de ambiente<input id="pesoEstabilidadeSala" type="number" min="0" step="500" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('estabilidadeSala', this.value)"></label>
+                            <label>Cruzar intervalo<input id="pesoIntervalo" type="number" min="0" step="500" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('intervalo', this.value)"></label>
+                            <label>Quebrar blocos<input id="pesoFragmentacao" type="number" min="0" step="500" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('fragmentacaoBlocos', this.value)"></label>
+                            <label>Sala grupo lotada<input id="pesoSalaGenerica" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('salaGenerica', this.value)"></label>
+                            <label>Sala específica dupla<input id="pesoSalaEspecifica" type="number" min="0" step="1000" class="w-full border rounded p-1 mt-0.5" onchange="atualizarPesoRestricao('salaEspecifica', this.value)"></label>
+                        </div>
+                        <button onclick="restaurarPesosPadrao()" class="mt-3 w-full bg-gray-100 hover:bg-gray-200 text-gray-700 rounded py-1 font-bold">Restaurar padrão</button>
+                    </div>
+                </div>
+
+                <button onclick="abrirTelaSeparada('profs')" class="text-xs bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded shadow transition font-bold border border-blue-400" title="Abrir horários dos professores em outra guia">
+                    <i class="fas fa-external-link-alt mr-1"></i> Profs
+                </button>
+                <button onclick="abrirTelaSeparada('ambs')" class="text-xs bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded shadow transition font-bold border border-yellow-400 mr-2" title="Abrir horários dos ambientes em outra guia">
+                    <i class="fas fa-external-link-alt mr-1"></i> Ambs
+                </button>
 
                 <div class="relative group">
                     <button class="text-xs bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded shadow transition font-bold border border-blue-500 flex items-center mr-2">
@@ -114,7 +147,7 @@
 
     <div class="container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        <div class="lg:col-span-4 space-y-6 max-h-[90vh] overflow-visible pr-2">
+        <div class="painel-config lg:col-span-4 space-y-6 max-h-[90vh] overflow-visible pr-2">
             
             <div class="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500">
                 <div class="flex justify-between items-center mb-2">
@@ -229,7 +262,7 @@
             </div>
         </div>
 
-        <div class="lg:col-span-8">
+        <div class="painel-horarios lg:col-span-8">
             <!-- Abas de Navegação -->
             <div class="flex border-b border-gray-300 mb-4 bg-white rounded-t shadow-sm">
                 <button id="tabBtnTurmas" onclick="mudarAba('turmas')" class="py-2 px-4 border-b-2 border-purple-600 font-bold text-purple-700 flex-1 hover:bg-gray-50 transition"><i class="fas fa-users mr-2"></i> Turmas</button>
@@ -269,8 +302,9 @@
             <p class="text-gray-600 mb-6 text-sm">Como deseja processar os horários já definidos na grade?</p>
 			
             <div class="mb-4">
-				<label class="text-xs font-bold text-gray-600 block mb-1">Nº de Simulações (Precisão vs Tempo):</label>
-				<input type="number" id="inputIteracoes" value="600" min="100" max="5000" step="100" class="w-full border p-2 rounded text-sm focus:outline-none focus:border-purple-500">
+				<label class="text-xs font-bold text-gray-600 block mb-1">Reinicios/rodadas de busca (0 = ate clicar Parar):</label>
+				<input type="number" id="inputIteracoes" value="5000" min="0" max="1000000" step="100" class="w-full border p-2 rounded text-sm focus:outline-none focus:border-purple-500">
+                <p class="text-[9px] text-gray-500 mt-1 leading-tight">Cada rodada reinicia a distribuicao, testa uma ordem diferente e conserva o melhor horario encontrado.</p>
 			</div>
 
             <div class="mb-4 bg-gray-50 p-2 rounded border border-gray-200">
@@ -313,6 +347,23 @@
         </div>
     </div>
     
+    <div id="ambSlotModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl w-[460px] max-w-full mx-4 flex flex-col max-h-[80vh]">
+            <div class="p-4 border-b flex justify-between items-center bg-gray-50 rounded-t-lg">
+                <h3 class="text-lg font-bold">Ambientes da aula</h3>
+                <button onclick="fecharEditorAmbientesSlot()" class="text-gray-400"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-4 overflow-y-auto flex-1">
+                <p class="text-xs text-gray-500 mb-3">Selecione um ou mais ambientes para esta aula da turma.</p>
+                <div id="ambSlotOptions" class="grid grid-cols-1 gap-1 text-xs"></div>
+            </div>
+            <div class="p-3 border-t bg-gray-50 flex justify-end gap-2">
+                <button onclick="fecharEditorAmbientesSlot()" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm">Cancelar</button>
+                <button onclick="salvarAmbientesSlot()" class="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm shadow">Aplicar</button>
+            </div>
+        </div>
+    </div>
+
     <div id="customModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full mx-4"><h3 id="modalTitle" class="text-lg font-bold mb-2 text-gray-800">Atenção</h3><p id="modalMsg" class="text-gray-600 mb-6 text-sm"></p><div class="flex justify-end gap-2"><button id="modalBtnCancel" onclick="closeModal()" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm transition">Cancelar</button><button id="modalBtnConfirm" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm shadow transition">Confirmar</button></div></div>
     </div>
@@ -321,6 +372,73 @@
         function showModal(m,c,a=false){const md=document.getElementById('customModal');document.getElementById('modalMsg').innerText=m;const bc=document.getElementById('modalBtnConfirm');const bn=document.getElementById('modalBtnCancel');const nb=bc.cloneNode(true);bc.parentNode.replaceChild(nb,bc);if(a){bn.classList.add('hidden');nb.innerText='OK';nb.onclick=closeModal;}else{bn.classList.remove('hidden');nb.innerText='Confirmar';nb.onclick=()=>{if(c)c();closeModal();};}md.classList.remove('hidden');}
         function closeModal(){document.getElementById('customModal').classList.add('hidden');}
         const uiAlert=(m)=>showModal(m,null,true); const uiConfirm=(m,c)=>showModal(m,c,false);
+
+        const PESOS_PADRAO = {
+            restricao: 120000,
+            evitar: 2000,
+            salaGenerica: 50000,
+            salaEspecifica: 100000,
+            estabilidadeSala: 5000,
+            intervalo: 8000,
+            fragmentacaoBlocos: 12000,
+            manhaNoiteMesmoDia: 25000,
+            tresTurnos: 60000,
+            todosDias: 30000,
+            noiteManha: 150000
+        };
+        const PESOS_INPUTS = {
+            restricao: 'pesoRestricao',
+            evitar: 'pesoEvitar',
+            salaGenerica: 'pesoSalaGenerica',
+            salaEspecifica: 'pesoSalaEspecifica',
+            estabilidadeSala: 'pesoEstabilidadeSala',
+            intervalo: 'pesoIntervalo',
+            fragmentacaoBlocos: 'pesoFragmentacao',
+            manhaNoiteMesmoDia: 'pesoManhaNoite',
+            tresTurnos: 'pesoTresTurnos',
+            todosDias: 'pesoTodosDias',
+            noiteManha: 'pesoNoiteManha'
+        };
+        let pesosRestricoes = {...PESOS_PADRAO};
+
+        function pesoRestricao(chave) {
+            const v = Number(pesosRestricoes[chave]);
+            return Number.isFinite(v) ? Math.max(0, v) : (PESOS_PADRAO[chave] || 0);
+        }
+
+        function carregarPesosRestricoes() {
+            try {
+                const salvos = JSON.parse(localStorage.getItem('sge_pesos_restricoes') || '{}');
+                pesosRestricoes = {...PESOS_PADRAO, ...salvos};
+            } catch(e) {
+                pesosRestricoes = {...PESOS_PADRAO};
+            }
+        }
+
+        function salvarPesosRestricoes() {
+            localStorage.setItem('sge_pesos_restricoes', JSON.stringify(pesosRestricoes));
+        }
+
+        function aplicarPesosNaUI() {
+            Object.entries(PESOS_INPUTS).forEach(([chave, id]) => {
+                const el = document.getElementById(id);
+                if(el) el.value = pesoRestricao(chave);
+            });
+        }
+
+        function atualizarPesoRestricao(chave, valor) {
+            pesosRestricoes[chave] = Math.max(0, parseInt(valor) || 0);
+            salvarPesosRestricoes();
+            aplicarPesosNaUI();
+            atualizarContadorNotificacoes();
+        }
+
+        function restaurarPesosPadrao() {
+            pesosRestricoes = {...PESOS_PADRAO};
+            salvarPesosRestricoes();
+            aplicarPesosNaUI();
+            atualizarContadorNotificacoes();
+        }
 
         const DIAS=['Segunda','Terça','Quarta','Quinta','Sexta']; const TURNOS=[{id:'M',l:'Manhã',c:'bg-yellow-50'},{id:'T',l:'Tarde',c:'bg-orange-50'},{id:'N',l:'Noite',c:'bg-indigo-50'}];
         let NUM_AULAS = 4, HORARIOS = [1,2,3,4], ignoreAmb = false;
@@ -355,6 +473,56 @@
             const p = nomeCompleto.trim().split(/\s+/);
             if(p.length <= 1) return p[0];
             return p[0] + ' ' + p[p.length - 1];
+        }
+
+        function abrirTelaSeparada(aba) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tela', '2');
+            url.searchParams.set('aba', aba);
+            window.open(url.toString(), '_blank');
+        }
+
+        function aplicarModoTelaSeparada() {
+            const params = new URLSearchParams(window.location.search);
+            const aba = params.get('aba');
+            if(params.get('tela') === '2') document.body.classList.add('modo-tela-extra');
+            if(['turmas','profs','ambs'].includes(aba)) mudarAba(aba);
+        }
+
+        function lerJSONStorage(chave, fallback) {
+            try { return JSON.parse(localStorage.getItem(chave) || JSON.stringify(fallback)); }
+            catch(e) { return fallback; }
+        }
+
+        function recarregarDadosDaOutraGuia() {
+            const selecionadasAntes = new Set(turmasSelecionadasAuto);
+            carregarPesosRestricoes();
+            aplicarPesosNaUI();
+            amb = lerJSONStorage('sge_ambientes', []);
+            disc = lerJSONStorage('sge_disciplinas', []);
+            tur = lerJSONStorage('sge_turmas', []);
+            prof = lerJSONStorage('sge_professores', []);
+            NUM_AULAS = parseInt(localStorage.getItem('sge_config_aulas')) || 4;
+            HORARIOS = Array.from({length: NUM_AULAS}, (_, i) => i + 1);
+            const cfg = document.getElementById('cfgAulas');
+            if(cfg) cfg.value = NUM_AULAS;
+            ignoreAmb = localStorage.getItem('sge_ignore_amb') === 'true';
+            const chk = document.getElementById('chkIgnoreAmb');
+            if(chk) chk.checked = ignoreAmb;
+            toggleIgnoreAmb(ignoreAmb, false);
+            turmasSelecionadasAuto = new Set(tur.filter(t => selecionadasAntes.size ? selecionadasAntes.has(t.id) : true).map(t => t.id));
+            migrar(false);
+            renderAll();
+            aplicarModoTelaSeparada();
+        }
+
+        let syncStorageTimer = null;
+        function configurarSincronizacaoEntreGuias() {
+            window.addEventListener('storage', ev => {
+                if(!ev.key || !ev.key.startsWith('sge_')) return;
+                clearTimeout(syncStorageTimer);
+                syncStorageTimer = setTimeout(recarregarDadosDaOutraGuia, 80);
+            });
         }
 
         function getBaseAmb(nomeInstancia) {
@@ -394,6 +562,8 @@
 
         function init(){ 
             renderGridsInit();
+            carregarPesosRestricoes();
+            aplicarPesosNaUI();
             amb=JSON.parse(localStorage.getItem('sge_ambientes') || '[]');
             disc=JSON.parse(localStorage.getItem('sge_disciplinas') || '[]');
             tur=JSON.parse(localStorage.getItem('sge_turmas') || '[]');
@@ -406,13 +576,13 @@
             document.getElementById('chkIgnoreAmb').checked = ignoreAmb;
             toggleIgnoreAmb(ignoreAmb, false);
             tur.forEach(t => turmasSelecionadasAuto.add(t.id));
-            migrar(); renderAll(); 
+            migrar(); renderAll(); aplicarModoTelaSeparada(); configurarSincronizacaoEntreGuias();
         }
 
         function toggleIgnoreAmb(v, s=true){ignoreAmb=v;const a=document.getElementById('areaAmbientes');if(v)a.classList.add('opacity-40','pointer-events-none');else a.classList.remove('opacity-40','pointer-events-none');if(s){localStorage.setItem('sge_ignore_amb',v);renderAll();}}
         function atualizarConfigAulas(n){NUM_AULAS=parseInt(n)||4;HORARIOS=Array.from({length:NUM_AULAS},(_,i)=>i+1);localStorage.setItem('sge_config_aulas',NUM_AULAS);renderAll();}
 
-        function migrar(){
+        function migrar(salvarAoFinal=true){
             amb.forEach(a => {
                 if (a.qtd > 1 && (!a.nomes || a.nomes.length !== a.qtd)) {
                     a.nomes = [];
@@ -457,7 +627,7 @@
                     }
                 }));
             });
-            salvar(false);
+            if(salvarAoFinal) salvar(false);
         }
         
         function autoPreencherBuracosLivresNaGrade(){
@@ -510,16 +680,10 @@
         function renderAmb(){
             document.getElementById('listaAmbientes').innerHTML=amb.map(a=>`<span class="bg-yellow-100 px-2 py-1 rounded text-xs border border-yellow-200 cursor-default">${a.tipo} (Cap:${a.cap}|Qtd:${a.qtd})${a.qtd>1 && a.nomes && a.nomes.length ? ` [${a.nomes.join(', ')}]`:''} <i onclick="removerAmbiente('${a.tipo}')" class="fas fa-times cursor-pointer"></i></span>`).join(''); 
             
-            let checkHtml = '';
-            amb.forEach(a => {
-                checkHtml += `<label class="flex items-center space-x-1 hover:bg-gray-100 p-1 rounded font-bold text-gray-700"><input type="checkbox" name="discAmbCheck" value="${a.tipo}" class="accent-yellow-600"><span>${a.tipo} ${a.qtd>1?'(Qualquer)':''}</span></label>`;
-                if(a.qtd > 1) {
-                    let nomes = (a.nomes && a.nomes.length === a.qtd) ? a.nomes : Array.from({length: a.qtd}, (_, i) => `${a.tipo} ${i+1}`);
-                    nomes.forEach(n => {
-                        checkHtml += `<label class="flex items-center space-x-1 hover:bg-gray-100 p-1 rounded ml-4 text-gray-600"><input type="checkbox" name="discAmbCheck" value="${n}" class="accent-yellow-600"><span>${n}</span></label>`;
-                    });
-                }
-            });
+            const checkHtml = listarOpcoesAmbientes({ incluirGrupos:true }).map(o => {
+                const ehGrupo = amb.some(a => a.tipo === o.value && a.qtd > 1);
+                return `<label class="flex items-center space-x-1 hover:bg-gray-100 p-1 rounded ${ehGrupo?'font-bold text-gray-700':'text-gray-600'}"><input type="checkbox" name="discAmbCheck" value="${escapeHtml(o.value)}" class="accent-yellow-600"><span>${escapeHtml(o.label)}</span></label>`;
+            }).join('');
             document.getElementById('checkDiscAmb').innerHTML = checkHtml;
         }
 
@@ -619,11 +783,7 @@
             disc.sort((a,b)=>a.nome.localeCompare(b.nome));
             
             document.getElementById('tagsDisciplinas').innerHTML=disc.map(d=>{
-                let ambsFormatados = (d.amb||[]).map(room => {
-                    const base = getBaseAmb(room);
-                    if (base && !base.isGeneric) return `${base.obj.tipo} -> ${room}`;
-                    return room;
-                }).join(' + ');
+                let ambsFormatados = (d.amb||[]).join(' + ');
                 return `<span class="bg-purple-100 px-2 py-1 rounded text-xs border border-purple-200">${d.nome} (${d.carga}h | ${d.splits?d.splits+' bloco(s)':'Auto'} | ${ambsFormatados||'-'}) <i onclick="editarDisciplina('${d.nome}')" class="fas fa-edit cursor-pointer text-blue-500 ml-1" title="Editar"></i> <i onclick="removerDisciplina('${d.nome}')" class="fas fa-times cursor-pointer text-red-500 ml-1" title="Excluir"></i></span>`;
             }).join('');
 
@@ -977,24 +1137,117 @@
             salvar();
         }
 
-        function alterarSalaSlot(tid,d,tCode,h,selSala,idx){
-            invalidarUndo();
-            const ns = selSala.value; const k=`${tCode}${h}`; const me=tur.find(x=>x.id===tid);
+        let ambSlotEdit = null;
+
+        function escapeHtml(v) {
+            return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
+
+        function instanciasAmbienteCadastro(a) {
+            if(!a || a.qtd <= 1) return [];
+            if(a.nomes && a.nomes.length === a.qtd) return [...a.nomes];
+            return Array.from({length:a.qtd}, (_, i) => `${a.tipo} ${i+1}`);
+        }
+
+        function listarOpcoesAmbientes({ incluirGrupos=true } = {}) {
+            const grupos = new Map();
+            const salas = new Map();
+            amb.forEach(a => {
+                const instancias = instanciasAmbienteCadastro(a);
+                if(incluirGrupos && a.qtd > 1) grupos.set(a.tipo, { value:a.tipo, label:`${a.tipo} (qualquer)` });
+                if(instancias.length) {
+                    instancias.forEach(ns => {
+                        if(!salas.has(ns)) salas.set(ns, { value:ns, label:ns });
+                    });
+                } else if(!salas.has(a.tipo)) {
+                    salas.set(a.tipo, { value:a.tipo, label:a.tipo });
+                }
+            });
+            return [...grupos.values(), ...salas.values()].sort((a,b)=>a.label.localeCompare(b.label));
+        }
+
+        function ambienteTemUsoGenerico(nomeGrupo) {
+            return tur.some(t => DIAS.some((_, d) => Object.keys(t.horario[d] || {}).some(k => {
+                const val = t.horario[d][k];
+                return !!(val && val.split('&').some(aloc => String(aloc.split('|')[2] || '').split('+').map(s=>s.trim()).includes(nomeGrupo)));
+            })));
+        }
+
+        function listarItensGradeAmbientes() {
+            const grupos = new Map();
+            const salas = new Map();
+            amb.slice().sort((a,b)=>a.tipo.localeCompare(b.tipo)).forEach(a => {
+                const instancias = instanciasAmbienteCadastro(a);
+                if(a.qtd > 1 && instancias.length) {
+                    if(ambienteTemUsoGenerico(a.tipo)) grupos.set(a.tipo, { nome:a.tipo, label:`${a.tipo} (qualquer)`, cap:a.cap, qtd:a.qtd, isGrupo:true, instancias });
+                    instancias.forEach(ns => {
+                        if(!salas.has(ns)) salas.set(ns, { nome:ns, label:ns, cap:a.cap, qtd:1, isGrupo:false, instancias:[] });
+                    });
+                } else if(!salas.has(a.tipo)) {
+                    salas.set(a.tipo, { nome:a.tipo, label:a.tipo, cap:a.cap, qtd:1, isGrupo:false, instancias:[] });
+                }
+            });
+            return [...grupos.values(), ...salas.values()].sort((a,b)=>a.label.localeCompare(b.label));
+        }
+
+        function alterarSalaSlotValor(tid,d,tCode,h,novaSala,idx) {
+            const ns = String(novaSala || '').split('+').map(x=>x.trim()).filter(Boolean).join('+');
+            if(!ns) { uiAlert("Selecione ao menos um ambiente."); return false; }
+
+            const k=`${tCode}${h}`; const me=tur.find(x=>x.id===tid);
+            if(!me || !me.horario[d] || !me.horario[d][k]) return false;
             let alocs = me.horario[d][k].split('&');
-            if(!alocs[idx]) return;
-            const parts = alocs[idx].split('|'); const pidStr = parts[0]; const dn = parts[1]; const os = parts[2];
+            if(!alocs[idx]) return false;
+            const parts = alocs[idx].split('|'); const pidStr = parts[0]; const dn = parts[1];
             
             const err = verificarSala(ns, d, tCode, h, tid, idx);
-            if(err){
-                uiAlert("Conflito: "+err);
-                selSala.value=os; 
-                selSala.classList.add('bg-red-200');
-                setTimeout(()=>selSala.classList.remove('bg-red-200'),1000);
-                return;
-            }
+            if(err){ uiAlert("Conflito: "+err); return false; }
+
+            invalidarUndo();
             alocs[idx] = `${pidStr}|${dn}|${ns}`;
             me.horario[d][k] = alocs.join('&');
             salvar();
+            return true;
+        }
+
+        function alterarSalaSlot(tid,d,tCode,h,selSala,idx){
+            const oldVal = selSala.getAttribute('data-current') || '';
+            if(!alterarSalaSlotValor(tid,d,tCode,h,selSala.value,idx)) {
+                selSala.value = oldVal;
+                selSala.classList.add('bg-red-200');
+                setTimeout(()=>selSala.classList.remove('bg-red-200'),1000);
+            }
+        }
+
+        function abrirEditorAmbientesSlot(tid,d,tCode,h,idx) {
+            const k=`${tCode}${h}`; const me=tur.find(x=>x.id===tid);
+            if(!me || !me.horario[d] || !me.horario[d][k]) return;
+            const aloc = me.horario[d][k].split('&')[idx];
+            if(!aloc) return;
+            const atual = (aloc.split('|')[2] || '').split('+').map(x=>x.trim()).filter(Boolean);
+            let ops = listarOpcoesAmbientes();
+            atual.forEach(v => { if(v && !ops.some(o=>o.value===v)) ops.push({ value:v, label:`${v} (atual)` }); });
+            if(!ops.length) return uiAlert("Cadastre ambientes antes de escolher mais de um ambiente.");
+
+            ambSlotEdit = {tid,d,tCode,h,idx};
+            document.getElementById('ambSlotOptions').innerHTML = ops.map(o => {
+                const checked = atual.includes(o.value) ? 'checked' : '';
+                return `<label class="flex items-center gap-2 p-2 rounded border hover:bg-yellow-50 cursor-pointer"><input type="checkbox" value="${escapeHtml(o.value)}" ${checked} class="accent-yellow-600"><span>${escapeHtml(o.label)}</span></label>`;
+            }).join('');
+            document.getElementById('ambSlotModal').classList.remove('hidden');
+        }
+
+        function fecharEditorAmbientesSlot() {
+            ambSlotEdit = null;
+            document.getElementById('ambSlotModal').classList.add('hidden');
+        }
+
+        function salvarAmbientesSlot() {
+            if(!ambSlotEdit) return;
+            const selecionados = Array.from(document.querySelectorAll('#ambSlotOptions input[type="checkbox"]:checked')).map(cb=>cb.value);
+            if(alterarSalaSlotValor(ambSlotEdit.tid, ambSlotEdit.d, ambSlotEdit.tCode, ambSlotEdit.h, selecionados.join('+'), ambSlotEdit.idx)) {
+                fecharEditorAmbientesSlot();
+            }
         }
 
         function getMotivosBuraco(t, d, tCode, h) {
@@ -1158,17 +1411,7 @@
         }
 
         function renderGradesAmbientes() {
-            const getInstancias = a => {
-                if(a.qtd <= 1) return [];
-                if(a.nomes && a.nomes.length === a.qtd) return [...a.nomes];
-                return Array.from({length:a.qtd},(_,i)=>`${a.tipo} ${i+1}`);
-            };
-            const itens = [];
-            amb.slice().sort((a,b)=>a.tipo.localeCompare(b.tipo)).forEach(a=>{
-                const instancias = getInstancias(a);
-                itens.push({nome:a.tipo, label:a.qtd>1?`${a.tipo} (Grupo / Qualquer)`:a.tipo, cap:a.cap, qtd:a.qtd, isGrupo:true, instancias});
-                instancias.forEach(ns=>itens.push({nome:ns, label:`${a.tipo} -> ${ns}`, cap:a.cap, qtd:1, isGrupo:false, instancias:[]}));
-            });
+            const itens = listarItensGradeAmbientes();
 
             const c = document.getElementById('containerAmbs');
             if(itens.length === 0) {
@@ -1277,24 +1520,9 @@
                             
                             let selS='';
                             if(aloc){
-                                let opsSala='';
-                                amb.forEach(a=>{
-                                    opsSala+=`<option value="${a.tipo}" ${a.tipo===sl?'selected':''}>${a.tipo} (Qualquer)</option>`;
-                                    if(a.qtd>1){
-                                        if (a.nomes && a.nomes.length === a.qtd) {
-                                            a.nomes.forEach(ns => {
-                                                opsSala+=`<option value="${ns}" ${ns===sl?'selected':''}>${ns}</option>`;
-                                            });
-                                        } else {
-                                            for(let i=1;i<=a.qtd;i++){
-                                                let ns=`${a.tipo} ${i}`;
-                                                opsSala+=`<option value="${ns}" ${ns===sl?'selected':''}>${ns}</option>`;
-                                            }
-                                        }
-                                    }
-                                });
-                                if(sl&&sl.includes('+')) opsSala+=`<option value="${sl}" selected>${sl}</option>`;
-                                selS=`<br><select onchange="alterarSalaSlot('${t.id}',${dx},'${tr.id}',${hr},this,${idx})" class="env-select w-full bg-transparent text-[9px] text-gray-500 mt-0.5 focus:ring-0 cursor-pointer text-center ${ignoreAmb?'hidden':''}">${opsSala}</select>`;
+                                let opsSala=listarOpcoesAmbientes({ incluirGrupos:true }).map(o=>`<option value="${escapeHtml(o.value)}" ${o.value===sl?'selected':''}>${escapeHtml(o.label)}</option>`).join('');
+                                if(sl&&sl.includes('+')) opsSala+=`<option value="${escapeHtml(sl)}" selected>${escapeHtml(sl)}</option>`;
+                                selS=`<div class="flex items-center gap-1 mt-0.5 ${ignoreAmb?'hidden':''}"><select data-current="${escapeHtml(sl||'')}" onchange="alterarSalaSlot('${t.id}',${dx},'${tr.id}',${hr},this,${idx})" class="env-select flex-1 min-w-0 bg-transparent text-[9px] text-gray-500 focus:ring-0 cursor-pointer text-center">${opsSala}</select><button type="button" onclick="abrirEditorAmbientesSlot('${t.id}',${dx},'${tr.id}',${hr},${idx})" class="text-[9px] text-yellow-700 hover:text-yellow-900 px-1" title="Selecionar um ou mais ambientes"><i class="fas fa-layer-group"></i></button></div>`;
                             }
                             
                             const labelD = dn ? `<div class="font-bold text-[10px] text-indigo-700 uppercase text-center border-b border-blue-200 pb-0.5 mb-0.5 w-full truncate" title="${dn}">${dn}</div>` : '';
@@ -1643,14 +1871,43 @@
                 return [plano.filter(Boolean)];
             }
 
-            if(c === 3) return [[3], [2,1]];
-
             const plano = [];
             let restante = c;
-            if(restante % 2 === 1 && restante > 1) { plano.push(3); restante -= 3; }
             while(restante >= 2) { plano.push(2); restante -= 2; }
             if(restante === 1) plano.push(1);
-            return [plano];
+            const planos = [plano];
+            if(c >= 3 && c % 2 === 1) {
+                const alt = [3];
+                let r = c - 3;
+                while(r >= 2) { alt.push(2); r -= 2; }
+                if(r === 1) alt.push(1);
+                planos.push(alt);
+            }
+            return planos;
+        }
+
+        function contarBlocosDisciplinaTurma(t, dn) {
+            let blocos = 0;
+            let aulasEmBlocosUnitarios = 0;
+            DIAS.forEach((_, d) => TURNOS.forEach(tr => {
+                if(!t.slotsAtivos.includes(`${d}-${tr.id}`)) return;
+                let tamBlocoAtual = 0;
+                const fechaBloco = () => {
+                    if(tamBlocoAtual > 0) {
+                        blocos++;
+                        if(tamBlocoAtual === 1) aulasEmBlocosUnitarios++;
+                    }
+                    tamBlocoAtual = 0;
+                };
+                HORARIOS.forEach(h => {
+                    const val = t.horario[d][`${tr.id}${h}`];
+                    const temDisc = !!(val && val.split('&').some(aloc => aloc.split('|')[1] === dn));
+                    if(temDisc) tamBlocoAtual++;
+                    else fechaBloco();
+                });
+                fechaBloco();
+            }));
+            return { blocos, aulasEmBlocosUnitarios };
         }
 
         // FIX #6: calcularPenalidade corrigida — não penaliza slots inativos no cálculo de estabilidade de sala
@@ -1667,7 +1924,8 @@
                             const pids = aloc.split('|')[0].split(',').filter(Boolean);
                             pids.forEach(pid => {
                                 const p = prof.find(x=>x.id==pid);
-                                if(p && p.evitar && p.evitar.includes(`${d}-${trId}`)) pen += 2000;
+                                if(p && p.restricoes && p.restricoes.includes(`${d}-${trId}`)) pen += pesoRestricao('restricao');
+                                if(p && p.evitar && p.evitar.includes(`${d}-${trId}`)) pen += pesoRestricao('evitar');
                             });
                         });
                     }
@@ -1710,12 +1968,12 @@
                             usedOfThisGroup = usedSpecifics.filter(n => myRooms.includes(n)).length;
                         }
                         let freeRooms = gObj.qtd - usedOfThisGroup;
-                        if(genericCounts[g] > freeRooms) pen += 50000;
+                        if(genericCounts[g] > freeRooms) pen += pesoRestricao('salaGenerica');
                     }
                 });
                 
                 let duplicates = usedSpecifics.length - new Set(usedSpecifics).size;
-                if(duplicates > 0) pen += duplicates * 100000;
+                if(duplicates > 0) pen += duplicates * pesoRestricao('salaEspecifica');
             })));
             // 3. Estabilidade de Sala — FIX: verifica slotsAtivos antes de comparar sala anterior
             if(!ignoreAmb){
@@ -1728,7 +1986,7 @@
                         if(val){
                             const aloc=val.split('&')[0];
                             const ac=aloc.split('|')[2];
-                            if(la&&ac!==la) pen+=5000;
+                            if(la&&ac!==la) pen+=pesoRestricao('estabilidadeSala');
                             la=ac;
                         }
                     });
@@ -1746,14 +2004,29 @@
                             if(val1 && val2) {
                                 const d1 = val1.split('&')[0].split('|')[1];
                                 const d2 = val2.split('&')[0].split('|')[1];
-                                if(d1 === d2) pen += 8000; 
+                                if(d1 === d2) pen += pesoRestricao('intervalo'); 
                             }
                         }
                     });
                 });
             });
 
-            // 5. Regras de bem-estar do professor
+            // 5. Fragmentacao de disciplinas sem quebra de blocos definida
+            lista.forEach(t => {
+                t.disciplinas.forEach(dn => {
+                    const dObj = disc.find(x => x.nome === dn);
+                    if(!dObj || dObj.splits) return;
+                    const carga = dObj.carga || 2;
+                    if(carga <= 2) return;
+                    const frag = contarBlocosDisciplinaTurma(t, dn);
+                    const blocosEsperados = Math.ceil(carga / 2);
+                    const unitariosPermitidos = carga % 2;
+                    if(frag.blocos > blocosEsperados) pen += (frag.blocos - blocosEsperados) * pesoRestricao('fragmentacaoBlocos');
+                    if(frag.aulasEmBlocosUnitarios > unitariosPermitidos) pen += (frag.aulasEmBlocosUnitarios - unitariosPermitidos) * Math.floor(pesoRestricao('fragmentacaoBlocos') / 2);
+                });
+            });
+
+            // 6. Regras de bem-estar do professor
             prof.forEach(px => {
                 const diasComAula = new Set();
                 DIAS.forEach((dayName,d) => {
@@ -1769,12 +2042,12 @@
                         const temT = turnosComAula.has('T');
                         const temN = turnosComAula.has('N');
                         
-                        if (temM && temT && temN) pen += 60000;
-                        else if (temM && temN) pen += 25000;
+                        if (temM && temT && temN) pen += pesoRestricao('tresTurnos');
+                        else if (temM && temN) pen += pesoRestricao('manhaNoiteMesmoDia');
                     }
                 });
-                if(!px.semRestricao && diasComAula.size >= DIAS.length) pen += 30000;
-                if(!px.semRestricao && violariaNoiteManha(px.id, lista, [])) pen += 150000;
+                if(!px.semRestricao && diasComAula.size >= DIAS.length) pen += pesoRestricao('todosDias');
+                if(!px.semRestricao && violariaNoiteManha(px.id, lista, [])) pen += pesoRestricao('noiteManha');
             });
 
             return pen;
@@ -1962,7 +2235,7 @@
                 if (aptos.length > 0) pids = aptos.map(p=>p.id).join(',');
             }
             if (!pids) return null;
-            return {dn, pids, sala: (dObj&&dObj.amb&&dObj.amb.length)?dObj.amb.join('+'):'Sala Padrão', missing};
+            return {dn, pids, sala: (dObj&&dObj.amb&&dObj.amb.length)?dObj.amb.join('+'):'Sala Padrão', missing, splits: dObj?.splits || 0, carga: dObj?.carga || 2};
         }
 
         function getGrupoVinculadoPendente(t, dn, cnt) {
@@ -2091,7 +2364,7 @@
 			return -pesoDificuldade;
 		}
 
-        async function executarGeracaoAutomatica(manter){
+        async function executarGeracaoAutomaticaLegado(manter){
             document.getElementById('autoGenModal').classList.add('hidden');
             document.getElementById('loadingOverlay').classList.remove('hidden'); 
             
@@ -2104,8 +2377,12 @@
 
             await new Promise(r=>setTimeout(r,100));
             
-            let bestTur = null;
-            let minScore = Infinity; 
+            const baselineTur = JSON.parse(JSON.stringify(tur));
+            const baselinePenalties = calcularPenalidade(baselineTur);
+            const baselineMissing = contarFaltas(baselineTur);
+            let bestTur = baselineTur;
+            let bestTurRodada = 0;
+            let minScore = (baselineMissing * 1000000) + baselinePenalties;
 
 			// NOVO: Captura o valor do input e do Auto-Download
 			const numIteracoes = parseInt(document.getElementById('inputIteracoes').value) || 600;
@@ -2374,6 +2651,514 @@
 
         // FIX #1: verificarConflitoHardInterno corrigida — professor null é pulado, não bloqueia
         // FIX #3: exclui a própria turma/slot do check (evita falso conflito com si mesmo)
+        // Motor escalavel: usa indices incrementais de ocupacao para evitar varrer todas as turmas a cada tentativa.
+        function chaveSlotIndexado(d, tCode, h) {
+            return `${d}|${tCode}|${h}`;
+        }
+
+        function obterSetIndexado(map, key) {
+            let s = map.get(key);
+            if(!s) {
+                s = new Set();
+                map.set(key, s);
+            }
+            return s;
+        }
+
+        function obterMapIndexado(map, key) {
+            let m = map.get(key);
+            if(!m) {
+                m = new Map();
+                map.set(key, m);
+            }
+            return m;
+        }
+
+        function instanciasAmbiente(aObj) {
+            if(!aObj || aObj.qtd <= 1) return aObj ? [aObj.tipo] : [];
+            if(aObj.nomes && aObj.nomes.length === aObj.qtd) return [...aObj.nomes];
+            return Array.from({length:aObj.qtd}, (_,i)=>`${aObj.tipo} ${i+1}`);
+        }
+
+        function registrarValorNoIndice(idx, t, d, tCode, h, val) {
+            if(!val) return;
+            const key = chaveSlotIndexado(d, tCode, h);
+            val.split('&').forEach(aloc => {
+                const parts = aloc.split('|');
+                pidsFromStr(parts[0]).forEach(pid => {
+                    obterSetIndexado(idx.profSlot, key).add(String(pid));
+                    obterSetIndexado(idx.profDiaTurno, `${pid}|${d}`).add(tCode);
+                });
+                String(parts[2] || '').split('+').map(x=>x.trim()).filter(Boolean).forEach(sala => {
+                    obterSetIndexado(idx.salaSlot, key).add(sala);
+                    const pref = obterMapIndexado(idx.turmaSalaPref, t.id);
+                    pref.set(sala, (pref.get(sala) || 0) + 1);
+                });
+            });
+        }
+
+        function criarIndiceOcupacao(lista) {
+            const idx = {
+                profSlot: new Map(),
+                profDiaTurno: new Map(),
+                salaSlot: new Map(),
+                turmaSalaPref: new Map()
+            };
+            lista.forEach(t => {
+                DIAS.forEach((_, d) => {
+                    Object.keys(t.horario[d] || {}).forEach(k => {
+                        const trId = k.replace(/[0-9]/g, '');
+                        const hId = parseInt(k.replace(/[^0-9]/g, ''));
+                        if(!hId || hId > NUM_AULAS || !t.slotsAtivos.includes(`${d}-${trId}`)) return;
+                        registrarValorNoIndice(idx, t, d, trId, hId, t.horario[d][k]);
+                    });
+                });
+            });
+            return idx;
+        }
+
+        function professorTemSlotIndexado(idx, pid, d, tCode, h, extras=[]) {
+            if(extras.some(e => e.pid === String(pid) && e.d === d && e.t === tCode && e.h === h)) return true;
+            const set = idx.profSlot.get(chaveSlotIndexado(d, tCode, h));
+            return !!(set && set.has(String(pid)));
+        }
+
+        function professorTemTurnoIndexado(idx, pid, d, tCode, extras=[]) {
+            if(extras.some(e => e.pid === String(pid) && e.d === d && e.t === tCode)) return true;
+            const set = idx.profDiaTurno.get(`${pid}|${d}`);
+            return !!(set && set.has(tCode));
+        }
+
+        function violariaTresTurnosIndexado(pid, d, tCode, idx, extras=[]) {
+            const turnos = new Set();
+            TURNOS.forEach(tr => {
+                if(tr.id === tCode || professorTemTurnoIndexado(idx, pid, d, tr.id, extras)) turnos.add(tr.id);
+            });
+            return turnos.has('M') && turnos.has('N');
+        }
+
+        function violariaNoiteManhaIndexado(pid, idx, extras=[]) {
+            const ultimosNoite = HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1));
+            const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
+            for(let d=0; d<DIAS.length-1; d++) {
+                const temNoiteFinal = ultimosNoite.some(h => professorTemSlotIndexado(idx, pid, d, 'N', h, extras));
+                const temManhaInicial = primeirosManha.some(h => professorTemSlotIndexado(idx, pid, d+1, 'M', h, extras));
+                if(temNoiteFinal && temManhaInicial) return true;
+            }
+            return false;
+        }
+
+        function extrasBlocoIndexado(params, s, b) {
+            const extras = [];
+            for(let k=0; k<b; k++) {
+                params.filter(p => p.missing > k).forEach(p => {
+                    pidsFromStr(p.pids).forEach(pid => extras.push({ pid:String(pid), d:s.d, t:s.t, h:s.h+k }));
+                });
+            }
+            return extras;
+        }
+
+        function avaliarRegrasProfessorBlocoIndexado(params, idx, s, b) {
+            const extras = extrasBlocoIndexado(params, s, b);
+            const pids = [...new Set(extras.map(e => e.pid))];
+            for(const pid of pids) {
+                const p = prof.find(x=>x.id==pid);
+                if(p && !p.semRestricao) {
+                    const antes = violariaNoiteManhaIndexado(pid, idx, []);
+                    const depois = violariaNoiteManhaIndexado(pid, idx, extras);
+                    if(!antes && depois) return { ok:false, softBad:false };
+                }
+            }
+            const softBad = pids.some(pid => {
+                const p = prof.find(x=>x.id==pid);
+                return (!p || !p.semRestricao) && violariaTresTurnosIndexado(pid, s.d, s.t, idx, extras);
+            });
+            return { ok:true, softBad };
+        }
+
+        function professoresLivresSlotIndexado(pidStr, d, tCode, h, idx) {
+            for(const pid of pidsFromStr(pidStr)) {
+                const p = prof.find(x=>x.id==pid);
+                if(!p) continue;
+                if(p.restricoes && p.restricoes.includes(`${d}-${tCode}`)) return false;
+                if(professorTemSlotIndexado(idx, pid, d, tCode, h)) return false;
+            }
+            return true;
+        }
+
+        function salaOcupadaIndexada(idx, d, tCode, h, sala) {
+            const set = idx.salaSlot.get(chaveSlotIndexado(d, tCode, h));
+            return !!(set && set.has(sala));
+        }
+
+        function salaLivreIntervaloIndexado(idx, d, tCode, startH, duracao, sala, reservas) {
+            for(let k=0; k<duracao; k++) {
+                const key = chaveSlotIndexado(d, tCode, startH+k);
+                if(salaOcupadaIndexada(idx, d, tCode, startH+k, sala)) return false;
+                if(reservas && reservas.has(`${key}|${sala}`)) return false;
+            }
+            return true;
+        }
+
+        function resolverInstanciaGenericaIndexada(tipo, d, tCode, startH, duracao, tid, idx, reservas) {
+            const aObj = amb.find(a => a.tipo === tipo);
+            if(!aObj || aObj.qtd <= 1) return tipo;
+            const pref = idx.turmaSalaPref.get(tid) || new Map();
+            const candidatas = instanciasAmbiente(aObj).sort((a,b) => {
+                const peso = (pref.get(b) || 0) - (pref.get(a) || 0);
+                return peso || a.localeCompare(b);
+            });
+            for(const inst of candidatas) {
+                if(salaLivreIntervaloIndexado(idx, d, tCode, startH, duracao, inst, reservas)) return inst;
+            }
+            return null;
+        }
+
+        function resolverSalasBlocoIndexado(t, params, idx, s, b) {
+            if(ignoreAmb) return params.map(p => p.missing > 0 ? p.sala : '');
+            const salas = [];
+            const reservas = new Set();
+            for(const p of params) {
+                const duracao = Math.min(b, p.missing);
+                if(duracao <= 0) { salas.push(''); continue; }
+                const tokens = String(p.sala || '').split('+').map(x=>x.trim()).filter(Boolean);
+                if(!tokens.length) { salas.push(p.sala || ''); continue; }
+                const resolvidas = [];
+                for(const sl of tokens) {
+                    const base = getBaseAmb(sl);
+                    if(base && t.alunos > base.obj.cap) return null;
+                    let sala = sl;
+                    if(base && base.isGeneric && base.obj.qtd > 1) {
+                        sala = resolverInstanciaGenericaIndexada(sl, s.d, s.t, s.h, duracao, t.id, idx, reservas);
+                        if(!sala) return null;
+                    } else if(!salaLivreIntervaloIndexado(idx, s.d, s.t, s.h, duracao, sl, reservas)) {
+                        return null;
+                    }
+                    for(let k=0; k<duracao; k++) reservas.add(`${chaveSlotIndexado(s.d, s.t, s.h+k)}|${sala}`);
+                    resolvidas.push(sala);
+                }
+                salas.push(resolvidas.join('+'));
+            }
+            return salas;
+        }
+
+        function avaliarBlocoEmSlotIndexado(t, params, idx, s, b) {
+            if(s.h + b - 1 > NUM_AULAS) return { ok:false, salas:[] };
+            if(b >= 2 && s.h % 2 === 0) return { ok:false, salas:[] };
+            for(let k=0; k<b; k++) {
+                const ativos = params.filter(p => p.missing > k);
+                if(!ativos.length) continue;
+                const ky = `${s.t}${s.h+k}`;
+                if(t.horario[s.d][ky]) return { ok:false, salas:[] };
+                for(const p of ativos) {
+                    if(!professoresLivresSlotIndexado(p.pids, s.d, s.t, s.h+k, idx)) return { ok:false, salas:[] };
+                }
+            }
+            const regraProf = avaliarRegrasProfessorBlocoIndexado(params, idx, s, b);
+            if(!regraProf.ok) return { ok:false, salas:[] };
+            const salas = resolverSalasBlocoIndexado(t, params, idx, s, b);
+            if(!salas) return { ok:false, salas:[] };
+            return { ok:true, salas, softBad: regraProf.softBad };
+        }
+
+        function gerarSlotsTurmaIndexado(t) {
+            const slots = [];
+            DIAS.forEach((_,dx)=>TURNOS.forEach(tr=>{
+                if(t.slotsAtivos.includes(`${dx}-${tr.id}`)) {
+                    for(let h=1; h<=NUM_AULAS; h++) slots.push({d:dx, t:tr.id, h});
+                }
+            }));
+            return slots;
+        }
+
+        function primeiraAlocacaoInfo(val) {
+            if(!val) return { dn:'', sala:'' };
+            const parts = val.split('&')[0].split('|');
+            return { dn:parts[1] || '', sala:parts[2] || '' };
+        }
+
+        function cruzaIntervaloIndexado(h1, h2) {
+            if(Math.abs(h1-h2) !== 1) return false;
+            return Math.min(h1, h2) % 2 === 0;
+        }
+
+        function pontuarSlotIndexado(t, params, idx, s, b, tentativa, rodada) {
+            let score = 0;
+            if(params.some(p => temEvitar(p.pids, s.d, s.t))) score += pesoRestricao('evitar') * 10;
+            if(tentativa.softBad) score += Math.max(pesoRestricao('manhaNoiteMesmoDia'), pesoRestricao('tresTurnos')) / 2;
+            if(b === 1 && params.some(p => !p.splits && p.carga > 2 && p.missing > 1)) score += pesoRestricao('fragmentacaoBlocos') * 1.5;
+            const ocupSala = idx.salaSlot.get(chaveSlotIndexado(s.d, s.t, s.h));
+            score += ocupSala ? ocupSala.size * 5 : 0;
+            params.forEach((p, pi) => {
+                const duracao = Math.min(b, p.missing);
+                const sala = tentativa.salas[pi] || p.sala || '';
+                for(let k=0; k<duracao; k++) {
+                    const hh = s.h + k;
+                    const prev = primeiraAlocacaoInfo(hh > 1 ? t.horario[s.d][`${s.t}${hh-1}`] : '');
+                    const next = primeiraAlocacaoInfo(hh < NUM_AULAS ? t.horario[s.d][`${s.t}${hh+1}`] : '');
+                    if(prev.dn === p.dn && cruzaIntervaloIndexado(hh-1, hh)) score += pesoRestricao('intervalo') * 0.9;
+                    if(next.dn === p.dn && cruzaIntervaloIndexado(hh, hh+1)) score += pesoRestricao('intervalo') * 0.9;
+                    if(prev.sala) score += prev.sala === sala ? -250 : Math.max(1, pesoRestricao('estabilidadeSala') / 15);
+                    if(next.sala) score += next.sala === sala ? -250 : Math.max(1, pesoRestricao('estabilidadeSala') / 15);
+                }
+            });
+            score += s.h * 2;
+            const cicloExploracao = rodada % 12;
+            const ruido = rodada === 0 ? 2 : (cicloExploracao === 0 ? 3500 : 450 + cicloExploracao * 120);
+            score += Math.random() * ruido;
+            return score;
+        }
+
+        function escolherSlotBlocoIndexado(t, params, idx, b, rodada) {
+            const candidatos = [];
+            for(const s of gerarSlotsTurmaIndexado(t)) {
+                const tentativa = avaliarBlocoEmSlotIndexado(t, params, idx, s, b);
+                if(!tentativa.ok) continue;
+                candidatos.push({ ...s, b, salas: tentativa.salas, score: pontuarSlotIndexado(t, params, idx, s, b, tentativa, rodada) });
+            }
+            candidatos.sort((a,b)=>a.score-b.score);
+            return candidatos[0] || null;
+        }
+
+        function registrarBlocoIndexado(t, params, idx, found) {
+            let total = 0;
+            for(let k=0; k<found.b; k++) {
+                const allocs = [];
+                params.forEach((p, pi) => {
+                    if(p.missing > 0) {
+                        allocs.push(`${p.pids}|${p.dn}|${found.salas[pi] || p.sala}`);
+                        p.missing--;
+                        total++;
+                    }
+                });
+                if(allocs.length) {
+                    const val = allocs.join('&');
+                    t.horario[found.d][`${found.t}${found.h+k}`] = val;
+                    registrarValorNoIndice(idx, t, found.d, found.t, found.h+k, val);
+                }
+            }
+            return total;
+        }
+
+        function montarRequisicoesGeracaoIndexada(lista) {
+            const reqs = [];
+            lista.forEach((t, ti) => {
+                if(!turmasSelecionadasAuto.has(t.id)) return;
+                const cnt = contarAlocadasTurma(t);
+                const agrupado = {};
+                t.disciplinas.forEach(dn => {
+                    const dObj = disc.find(x=>x.nome===dn);
+                    const cTotal = dObj?.carga || 2;
+                    const splits = dObj?.splits || 0;
+                    const v = (t.vinculos && t.vinculos[dn]) ? t.vinculos[dn] : `single_${dn}`;
+                    const c = cTotal - (cnt[dn] || 0);
+                    if(c <= 0) return;
+                    if(!agrupado[v]) agrupado[v] = { ti, dns:[], c:0, splits, cTotal, missing:{} };
+                    agrupado[v].c = Math.max(agrupado[v].c, c);
+                    agrupado[v].dns.push(dn);
+                    agrupado[v].missing[dn] = c;
+                });
+                Object.values(agrupado).forEach(g=>reqs.push(g));
+            });
+            return reqs;
+        }
+
+        function ordenarReqsIndexadas(reqs, lista, rodada) {
+            reqs.sort((a,b) => {
+                const pa = calcularPrioridadeReq(a, lista);
+                const pb = calcularPrioridadeReq(b, lista);
+                const carga = b.c - a.c;
+                const exploracao = rodada === 0 ? 0 : Math.min(80, 8 + (rodada % 40) * 2);
+                return (pa - pb) || carga || ((Math.random() - 0.5) * exploracao);
+            });
+        }
+
+        function executarPasseAlocacaoIndexada(lista, rodada) {
+            const idx = criarIndiceOcupacao(lista);
+            const reqs = montarRequisicoesGeracaoIndexada(lista);
+            ordenarReqsIndexadas(reqs, lista, rodada);
+            let colocadas = 0;
+            for(const r of reqs) {
+                if(flagInterromper) break;
+                const t = lista[r.ti];
+                let params = r.dns.map(dn => montarParamAlocacao(t, dn, r.missing[dn])).filter(Boolean);
+                params = params.filter(p => p.pids);
+                if(!params.length) continue;
+                const planosBlocos = gerarPlanosBlocos(r.c, r.cTotal, r.splits);
+                for(const plano of planosBlocos) {
+                    if(params.every(p => p.missing <= 0)) break;
+                    for(const bloco of plano) {
+                        if(params.every(p => p.missing <= 0)) break;
+                        const b = Math.min(bloco, Math.max(...params.map(p=>p.missing)));
+                        const found = escolherSlotBlocoIndexado(t, params, idx, b, rodada);
+                        if(found) {
+                            colocadas += registrarBlocoIndexado(t, params, idx, found);
+                        } else {
+                            let alocouMenor = false;
+                            for(let menor=b-1; menor>=2; menor--) {
+                                const menorFound = escolherSlotBlocoIndexado(t, params, idx, menor, rodada);
+                                if(menorFound) {
+                                    colocadas += registrarBlocoIndexado(t, params, idx, menorFound);
+                                    alocouMenor = true;
+                                    break;
+                                }
+                            }
+                            if(alocouMenor) continue;
+                            for(let tent=0; tent<b; tent++) {
+                                if(params.every(p => p.missing <= 0)) break;
+                                const single = escolherSlotBlocoIndexado(t, params, idx, 1, rodada);
+                                if(!single) break;
+                                colocadas += registrarBlocoIndexado(t, params, idx, single);
+                            }
+                        }
+                    }
+                }
+            }
+            return { idx, colocadas };
+        }
+
+        function preencherBuracosLivresIndexado(lista, idx) {
+            let total = 0;
+            let mudou = true;
+            let guard = 0;
+            while(mudou && guard++ < 10) {
+                mudou = false;
+                for(const t of lista) {
+                    if(!turmasSelecionadasAuto.has(t.id)) continue;
+                    const cnt = contarAlocadasTurma(t);
+                    for(let d=0; d<DIAS.length; d++) {
+                        for(const tr of TURNOS) {
+                            if(!t.slotsAtivos.includes(`${d}-${tr.id}`)) continue;
+                            for(let h=1; h<=NUM_AULAS; h++) {
+                                const ky = `${tr.id}${h}`;
+                                if(t.horario[d][ky]) continue;
+                                const candidatos = [];
+                                for(const dn of t.disciplinas) {
+                                    const carga = disc.find(x=>x.nome===dn)?.carga || 2;
+                                    if((cnt[dn] || 0) >= carga) continue;
+                                    const grupo = getGrupoVinculadoPendente(t, dn, cnt);
+                                    if(grupo[0] !== dn) continue;
+                                    const faltasGrupo = grupo.map(gdn => (disc.find(x=>x.nome===gdn)?.carga || 2) - (cnt[gdn] || 0));
+                                    if(faltasGrupo.some(f => f > 1)) continue;
+                                    const params = grupo.map(gdn => montarParamAlocacao(t, gdn, 1)).filter(Boolean);
+                                    if(params.length !== grupo.length || params.some(p=>!p.pids)) continue;
+                                    const tentativa = avaliarBlocoEmSlotIndexado(t, params, idx, {d, t:tr.id, h}, 1);
+                                    if(!tentativa.ok) continue;
+                                    candidatos.push({
+                                        params,
+                                        found: {d, t:tr.id, h, b:1, salas:tentativa.salas},
+                                        evita: params.some(p=>temEvitar(p.pids, d, tr.id)),
+                                        softBad: tentativa.softBad,
+                                        maiorFalta: Math.max(...faltasGrupo)
+                                    });
+                                }
+                                if(!candidatos.length) continue;
+                                candidatos.sort((a,b) =>
+                                    (a.evita === b.evita ? 0 : a.evita ? 1 : -1) ||
+                                    (a.softBad === b.softBad ? 0 : a.softBad ? 1 : -1) ||
+                                    (b.maiorFalta - a.maiorFalta) ||
+                                    a.params[0].dn.localeCompare(b.params[0].dn)
+                                );
+                                const escolhido = candidatos[0];
+                                const antes = escolhido.params.reduce((acc,p)=>acc+p.missing,0);
+                                registrarBlocoIndexado(t, escolhido.params, idx, escolhido.found);
+                                escolhido.params.forEach(p => cnt[p.dn] = (cnt[p.dn] || 0) + 1);
+                                total += antes;
+                                mudou = true;
+                            }
+                        }
+                    }
+                }
+            }
+            return total;
+        }
+
+        async function executarGeracaoAutomatica(manter){
+            document.getElementById('autoGenModal').classList.add('hidden');
+            if(!tur.some(t => turmasSelecionadasAuto.has(t.id))) return uiAlert("Nenhuma turma selecionada para geracao automatica.");
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+
+            turBackup = JSON.stringify(tur);
+            bestTurGlobal = null;
+            document.getElementById('btnUndo').classList.remove('hidden');
+            await new Promise(r=>setTimeout(r,100));
+
+            const baselineTur = JSON.parse(JSON.stringify(tur));
+            const baselinePenalties = calcularPenalidade(baselineTur);
+            const baselineMissing = contarFaltas(baselineTur);
+            let bestTur = baselineTur;
+            let bestTurRodada = 0;
+            let minScore = (baselineMissing * 1000000) + baselinePenalties;
+            const campoRodadas = document.getElementById('inputIteracoes');
+            const rodadasInformadas = parseInt(campoRodadas.value);
+            const rodadas = (!Number.isFinite(rodadasInformadas) || rodadasInformadas <= 0)
+                ? Infinity
+                : Math.min(1000000, rodadasInformadas);
+            campoRodadas.value = Number.isFinite(rodadas) ? rodadas : 0;
+            const enableAutoDownload = document.getElementById('chkAutoDownload') && document.getElementById('chkAutoDownload').checked;
+            const autoDownloadMin = parseInt(document.getElementById('inputAutoDownloadMin').value) || 15;
+            const startTimeMs = Date.now();
+            let semMelhora = 0;
+
+            flagInterromper = false;
+            const btn = document.getElementById('btnPararGen');
+            btn.innerText = "Parar e usar a melhor distribuicao ate o momento";
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            bestTurGlobal = bestTur;
+            document.getElementById('loadingBest').innerText = `Grade atual: ${baselineMissing} faltas | penalidade ${baselinePenalties}`;
+            document.getElementById('btnDownloadCurrent').classList.remove('hidden');
+
+            for(let rodada=0; rodada<rodadas; rodada++) {
+                if(flagInterromper) break;
+                const totalRodadasTxt = Number.isFinite(rodadas) ? `/${rodadas}` : " (ate parar)";
+                document.getElementById('loadingStatus').innerText = `Reinicio ${rodada+1}${totalRodadasTxt}: testando nova distribuicao... Sem melhora: ${semMelhora}`;
+                await new Promise(r=>setTimeout(r,0));
+
+                const tmp = JSON.parse(JSON.stringify(tur));
+                if(!manter) {
+                    tmp.forEach(t => {
+                        if(turmasSelecionadasAuto.has(t.id)) DIAS.forEach((_,d)=>t.horario[d] = {});
+                    });
+                }
+
+                const exec = executarPasseAlocacaoIndexada(tmp, rodada);
+                preencherBuracosLivresIndexado(tmp, exec.idx);
+
+                const currentPenalties = calcularPenalidade(tmp);
+                const currentMissing = contarFaltas(tmp);
+                const currentScore = (currentMissing * 1000000) + currentPenalties;
+                if(currentScore < minScore) {
+                    minScore = currentScore;
+                    semMelhora = 0;
+                    bestTur = tmp;
+                    bestTurRodada = rodada + 1;
+                    bestTurGlobal = tmp;
+                    document.getElementById('loadingBest').innerText = `Melhor arranjo: ${currentMissing} faltas | penalidade ${currentPenalties} | rodada ${rodada+1}`;
+                    document.getElementById('btnDownloadCurrent').classList.remove('hidden');
+                    if(enableAutoDownload) {
+                        const elapsedMin = (Date.now() - startTimeMs) / 60000;
+                        if(elapsedMin >= autoDownloadMin) exportarCRIC(bestTurGlobal, true);
+                    }
+                } else {
+                    semMelhora++;
+                }
+                if(currentMissing === 0 && currentPenalties === 0) {
+                    document.getElementById('loadingStatus').innerText = "Arranjo perfeito encontrado. Finalizando...";
+                    break;
+                }
+            }
+
+            if(bestTur) tur = bestTur;
+            salvar();
+            document.getElementById('loadingOverlay').classList.add('hidden');
+            if(wakeLock) { try { await wakeLock.release(); } catch(e) {} wakeLock = null; }
+            const rel = gerarRelatorio();
+            if(rel.erros.length > 0 || rel.avisos.length > 0) abrirRelatorio();
+            else if(bestTurRodada === 0) uiAlert("A geração não encontrou uma distribuição melhor que a grade atual. A configuração em tela foi preservada.");
+        }
+
         function verificarConflitoHardInterno(pidStr,d,tCode,h,tid,lst){
             const k=`${tCode}${h}`;
             for(let pid of String(pidStr).split(',').filter(Boolean)){
@@ -2414,16 +3199,13 @@
 
         function exportarCRIC(lista = tur, isAutoBackup = false){
             let cric="TIPO§NOME§D1§D2§D3§D4§D5§D6\n";
+            cric+=`CFG§PESOS§${encodeURIComponent(JSON.stringify(pesosRestricoes))}§§§§§\n`;
             amb.forEach(a=>{
                 const nomesStr = (a.nomes && a.nomes.length) ? a.nomes.join('|') : '';
                 cric+=`AMB§${a.tipo}§${a.cap}§${a.qtd}§${nomesStr}§§§\n`;
             });
             disc.forEach(d=>{
-                let ambsFormatados = (d.amb||[]).map(room => {
-                    const base = getBaseAmb(room);
-                    if (base && !base.isGeneric) return `${base.obj.tipo} -> ${room}`;
-                    return room;
-                }).join('+');
+                let ambsFormatados = (d.amb||[]).join('+');
                 cric+=`DISC§${d.nome}§${d.carga}§${ambsFormatados}§${d.splits||''}§§§\n`;
             });
             prof.forEach(p=>cric+=`PROF§${p.nome}§${p.disciplinas.join('|')}§${p.restricoes.join('|')}§${p.evitar.join('|')}§${p.semRestricao?'semRestricao':''}§§\n`);
@@ -2459,9 +3241,16 @@
             const sep = texto.includes('§') ? '§' : ';';
             const l = texto.split(/\r?\n/);
             const norm = s => s ? s.trim().toUpperCase() : '';
+            let pesosImportados = false;
 
             l.forEach(row => {
                 const c = row.split(sep).map(x => x ? x.trim() : '');
+                if (c[0] === 'CFG' && norm(c[1]) === 'PESOS' && c[2]) {
+                    try {
+                        pesosRestricoes = {...PESOS_PADRAO, ...JSON.parse(decodeURIComponent(c[2]))};
+                        pesosImportados = true;
+                    } catch(e) {}
+                }
                 if (c[0] === 'AMB') {
                     if (!amb.find(a => norm(a.tipo) === norm(c[1]))) {
                         let qtd = parseInt(c[3]) || 1;
@@ -2563,6 +3352,10 @@
             tur.forEach(t => turmasSelecionadasAuto.add(t.id));
             const chkAll = document.getElementById('chkToggleAutoAll');
             if(chkAll) chkAll.checked = true;
+            if(pesosImportados) {
+                salvarPesosRestricoes();
+                aplicarPesosNaUI();
+            }
 
             salvar(); renderAll();
         }
@@ -2623,17 +3416,7 @@
                     p.innerHTML+=`<div class="mb-4 border border-gray-400 no-break page-break"><div class="bg-gray-200 font-bold p-1">${px.nome}</div><table class="w-full text-xs text-center border-collapse" style="table-layout: fixed;">${header()}<tbody>${TURNOS.map(tr=>HORARIOS.map((h,ix)=>`<tr class="${tr.id==='T'?'bg-tarde':''}">${ix===0?`<td rowspan="${NUM_AULAS}" class="border font-bold">${tr.id}</td>`:''}<td class="border">${h}</td>${DIAS.map((dayName,dx)=>{const k=`${tr.id}${h}`;let cell='-';for(let t of tur){if(!t.slotsAtivos.includes(`${dx}-${tr.id}`)) continue; const val=t.horario[dx][k];if(val&&val.split('&').some(aloc=>aloc.split('|')[0].split(',').filter(Boolean).includes(String(px.id)))){const aloc=val.split('&').find(a=>a.split('|')[0].split(',').filter(Boolean).includes(String(px.id)));const parts=aloc.split('|');const dn=parts[1];const sl=parts[2];cell=`<div class="print-cell-truncate"><b>${t.nome}</b></div><div class="print-cell-truncate">${dn}</div>${ignoreAmb?'':`<div class="print-cell-truncate text-[9px]">${sl}</div>`}`;break;}}return `<td class="border align-middle" style="max-width: 0;">${cell}</td>`;}).join('')}</tr>`).join('')).join('')}</tbody></table></div>`;
                 });
             } else if(tipo==='ambientes') {
-                const getInstancias = a => {
-                    if(a.qtd <= 1) return [];
-                    if(a.nomes && a.nomes.length === a.qtd) return [...a.nomes];
-                    return Array.from({length:a.qtd},(_,i)=>`${a.tipo} ${i+1}`);
-                };
-                const itens = [];
-                amb.slice().sort((a,b)=>a.tipo.localeCompare(b.tipo)).forEach(a=>{
-                    const instancias = getInstancias(a);
-                    itens.push({nome:a.tipo, label:a.qtd>1?`${a.tipo} (Grupo / Qualquer)`:a.tipo, cap:a.cap, qtd:a.qtd, isGrupo:true, instancias});
-                    instancias.forEach(ns=>itens.push({nome:ns, label:`${a.tipo} -> ${ns}`, cap:a.cap, qtd:1, isGrupo:false, instancias:[]}));
-                });
+                const itens = listarItensGradeAmbientes();
                 if(!itens.length) {
                     p.innerHTML = `<div class="text-center p-6 font-bold">Nenhum ambiente cadastrado.</div>`;
                 }
