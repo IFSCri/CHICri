@@ -617,13 +617,19 @@
                 });
 
                 if(!t.vinculos) t.vinculos={};
-                DIAS.forEach((dayName,d)=>Object.keys(t.horario[d]).forEach(k=>{
+                                DIAS.forEach((dayName,d)=>Object.keys(t.horario[d]).forEach(k=>{
                     let v=t.horario[d][k];
                     if(v && !v.includes('&') && v.split('|').length===2){
                         const parts=v.split('|'); const p=parts[0].split(',').filter(Boolean).join(','); const dn=parts[1]; 
                         const dObj=disc.find(x=>x.nome===dn);
-                        const aDef = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : 'Sala Padrão';
+                        const aDef = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : '';
                         t.horario[d][k]=`${p}|${dn}|${aDef}`;
+                    } else if(v) {
+                        t.horario[d][k] = v.split('&').map(aloc => {
+                            let parts = aloc.split('|');
+                            if(parts[2] === 'Sala Padrão') parts[2] = '';
+                            return parts.join('|');
+                        }).join('&');
                     }
                 }));
             });
@@ -1106,28 +1112,21 @@
             return null;
         }
 
-        function atualizarHorario(tid, d, tCode, h, sel, idx) {
+       function atualizarHorario(tid, d, tCode, h, sel, idx) {
             invalidarUndo();
             const k = `${tCode}${h}`; const me = tur.find(x=>x.id===tid);
             let alocs = me.horario[d][k] ? me.horario[d][k].split('&') : [];
             
             if(sel.value){
                 const parts = sel.value.split('|'); const pidStr = parts[0]; const dn = parts[1];
-                const bkp = alocs[idx]; alocs[idx] = 'TEMP';
                 
-                const revert = () => {
-                    if (bkp === undefined || bkp === 'TEMP') alocs.splice(idx, 1); else alocs[idx] = bkp;
-                    me.horario[d][k] = alocs.length ? alocs.join('&') : null;
-                    sel.value = "";
-                };
-
-                const errP = verificarConflitoProfessorOcupado(pidStr, d, tCode, h, tid, idx);
-                if(errP){uiAlert(errP); revert(); return;}
+                const errP = verificarConflitoHard(pidStr, d, tCode, h, tid, idx);
+                if(errP){ uiAlert(errP); }
                 
                 const dObj = disc.find(x=>x.nome===dn);
-                const salaDefault = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : 'Sala Padrão';
+                const salaDefault = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : '';
                 const errS = verificarSala(salaDefault, d, tCode, h, tid, idx);
-                if(errS){uiAlert(errS); revert(); return;} 
+                if(errS){ uiAlert(errS); } 
                 
                 alocs[idx] = `${pidStr}|${dn}|${salaDefault}`;
             } else {
@@ -1192,7 +1191,6 @@
 
         function alterarSalaSlotValor(tid,d,tCode,h,novaSala,idx) {
             const ns = String(novaSala || '').split('+').map(x=>x.trim()).filter(Boolean).join('+');
-            if(!ns) { uiAlert("Selecione ao menos um ambiente."); return false; }
 
             const k=`${tCode}${h}`; const me=tur.find(x=>x.id===tid);
             if(!me || !me.horario[d] || !me.horario[d][k]) return false;
@@ -1201,7 +1199,7 @@
             const parts = alocs[idx].split('|'); const pidStr = parts[0]; const dn = parts[1];
             
             const err = verificarSala(ns, d, tCode, h, tid, idx);
-            if(err){ uiAlert("Conflito: "+err); return false; }
+            if(err){ uiAlert("Conflito: "+err); }
 
             invalidarUndo();
             alocs[idx] = `${pidStr}|${dn}|${ns}`;
@@ -1277,7 +1275,7 @@
                 if (!pids.length) { html += `- <b class="text-gray-700">${dn}</b>: Sem prof<br>`; return; }
 
                 const dObj = disc.find(x=>x.nome===dn);
-                const salaDef = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : 'Sala Padrão';
+                const salaDef = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : '';
                 
                 const conflitoProf = verificarConflitoHard(pids.join(','), d, tCode, h, t.id, -1);
                 
@@ -1520,13 +1518,12 @@
                             
                             let selS='';
                             if(aloc){
-                                let opsSala=listarOpcoesAmbientes({ incluirGrupos:true }).map(o=>`<option value="${escapeHtml(o.value)}" ${o.value===sl?'selected':''}>${escapeHtml(o.label)}</option>`).join('');
+                                let opsSala=`<option value="" ${!sl?'selected':''}>-- Sem ambiente --</option>` + listarOpcoesAmbientes({ incluirGrupos:true }).map(o=>`<option value="${escapeHtml(o.value)}" ${o.value===sl?'selected':''}>${escapeHtml(o.label)}</option>`).join('');
                                 if(sl&&sl.includes('+')) opsSala+=`<option value="${escapeHtml(sl)}" selected>${escapeHtml(sl)}</option>`;
                                 selS=`<div class="flex items-center gap-1 mt-0.5 ${ignoreAmb?'hidden':''}"><select data-current="${escapeHtml(sl||'')}" onchange="alterarSalaSlot('${t.id}',${dx},'${tr.id}',${hr},this,${idx})" class="env-select flex-1 min-w-0 bg-transparent text-[9px] text-gray-500 focus:ring-0 cursor-pointer text-center">${opsSala}</select><button type="button" onclick="abrirEditorAmbientesSlot('${t.id}',${dx},'${tr.id}',${hr},${idx})" class="text-[9px] text-yellow-700 hover:text-yellow-900 px-1" title="Selecionar um ou mais ambientes"><i class="fas fa-layer-group"></i></button></div>`;
                             }
                             
                             const labelD = dn ? `<div class="font-bold text-[10px] text-indigo-700 uppercase text-center border-b border-blue-200 pb-0.5 mb-0.5 w-full truncate" title="${dn}">${dn}</div>` : '';
-                            
                             let wrapperClasses = idx > 0 ? 'border-t border-gray-300 mt-1 pt-1 ' : 'p-0.5 rounded transition-colors duration-200 ';
                             let allocTitle = '';
                             
@@ -1567,7 +1564,7 @@
             if(profsDaDisc.length === 0) return `<b>${t.nome}:</b> ${dn} falta ${m-cnt} aula(s) <span class="text-gray-500 font-normal">(Nenhum professor vinculado)</span>`;
 
             const dObj = disc.find(x=>x.nome===dn);
-            const salaDef = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : 'Sala Padrão';
+            const salaDef = (dObj&&dObj.amb&&dObj.amb.length) ? dObj.amb.join('+') : '';
             const faltam = m-cnt;
             const resumo = { livres:0, bloqueio:0, ocupado:0, sala:0 };
             const detalhes = [];
@@ -2235,7 +2232,7 @@
                 if (aptos.length > 0) pids = aptos.map(p=>p.id).join(',');
             }
             if (!pids) return null;
-            return {dn, pids, sala: (dObj&&dObj.amb&&dObj.amb.length)?dObj.amb.join('+'):'Sala Padrão', missing, splits: dObj?.splits || 0, carga: dObj?.carga || 2};
+            return {dn, pids, sala: (dObj&&dObj.amb&&dObj.amb.length)?dObj.amb.join('+'):'', missing, splits: dObj?.splits || 0, carga: dObj?.carga || 2};
         }
 
         function getGrupoVinculadoPendente(t, dn, cnt) {
@@ -3330,7 +3327,7 @@
                     const parts = c[5].split('|');
                     const pnStr = parts[0] || '';
                     const dn = parts[1] ? parts[1].trim() : '';
-                    const sl = parts[2] ? parts[2].trim() : 'Sala Padrão';
+                    const sl = parts[2] !== undefined ? parts[2].trim() : '';
                     
                     const pidStr = pnStr.split('+').map(n => mp[norm(n)] || prof.find(x => norm(x.nome) === norm(n))?.id || '').filter(Boolean).join(',');
 
