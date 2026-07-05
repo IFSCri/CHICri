@@ -43,7 +43,7 @@
 
     <nav class="bg-green-700 text-white p-3 shadow-lg sticky top-0 z-40">
         <div class="container mx-auto flex flex-wrap justify-between items-center gap-2">
-            <h1 class="text-lg font-bold"><i class="fas fa-calendar-alt mr-2"></i>CHICri v10.33</h1>
+            <h1 class="text-lg font-bold"><i class="fas fa-calendar-alt mr-2"></i>CHICri v2.0</h1>
             
             <div class="flex gap-2 items-center">
                 <div class="flex items-center bg-green-800 rounded px-2 py-1 border border-green-600 mr-2" title="Quantidade de aulas por turno">
@@ -586,7 +586,7 @@
                 for(let idx=0; idx<alocs.length; idx++) {
                     if(u.id === tid && idx === selfIdx) continue;
                     const salas = tokensAmbiente(alocs[idx].split('|')[2]).filter(s => !ambienteEhGrupo(s));
-                    if(salas.includes(sala)) return true;
+                    if(salas.includes(sala) && sala.toUpperCase() !== 'SEM AMBIENTE') return true;
                 }
             }
             return false;
@@ -663,7 +663,7 @@
             }));
         }
 
-        function renderGridsInit() {
+                function renderGridsInit() {
             const diasDefs=[0,1,2,3,4];
             const header = `<div class="font-bold self-center text-gray-400">T/D</div><div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div>`;
             let profHtml = header; let turmaHtml = header;
@@ -672,7 +672,12 @@
                 profHtml += `<div class='font-bold self-center'>${t.id}</div>`;
                 turmaHtml += `<div class='font-bold self-center'>${t.id}</div>`;
                 diasDefs.forEach(d=>{
-                    profHtml += `<div class="restricao-cell res-livre w-full h-6 rounded cursor-pointer flex items-center justify-center font-bold" id="cell-res-${d}-${t.id}" onclick="toggleRestricao(${d},'${t.id}')" data-state="0"><i class="fas fa-check text-[8px] opacity-0"></i></div>`;
+                    let hHtml = `<div class="flex flex-col gap-0.5 w-full">`;
+                    HORARIOS.forEach(h => {
+                        hHtml += `<div class="restricao-cell res-livre w-full h-4 rounded cursor-pointer flex items-center justify-center font-bold text-[8px]" id="cell-res-${d}-${t.id}-${h}" onclick="toggleRestricao(${d},'${t.id}',${h})" data-state="0" title="Horário ${h}">${h}</div>`;
+                    });
+                    hHtml += `</div>`;
+                    profHtml += hHtml;
                     turmaHtml += `<div class="restricao-cell res-active w-full h-6 rounded cursor-pointer flex items-center justify-center font-bold" id="cell-turma-${d}-${t.id}" onclick="toggleTurmaTurno(${d},'${t.id}')" data-active="true" data-blocked="false"><i class="fas fa-check text-[8px]"></i></div>`;
                 });
             });
@@ -766,6 +771,9 @@
         }
 
         function migrar(salvarAoFinal=true){
+            if (!amb.some(a => a.tipo.toUpperCase() === 'SEM AMBIENTE')) {
+                amb.unshift({ tipo: 'SEM AMBIENTE', cap: 9999, qtd: 1, nomes: [] });
+            }
             amb.forEach(a => {
                 if (a.qtd > 1 && (!a.nomes || a.nomes.length !== a.qtd)) {
                     a.nomes = [];
@@ -780,7 +788,26 @@
                 if(!d.amb) d.amb = [];
                 if(d.splits === undefined) d.splits = 0;
             });
-            tur.forEach(t=>{
+            prof.forEach(p => {
+        // Expand old restrictions (d-t) to (d-t-h)
+        const expandOld = arr => {
+            if(!arr) return [];
+            const newArr = [];
+            arr.forEach(r => {
+                const parts = r.split('-');
+                if(parts.length === 2) {
+                    for(let h=1; h<=NUM_AULAS; h++) newArr.push(r + '-' + h);
+                } else {
+                    newArr.push(r);
+                }
+            });
+            return newArr;
+        };
+        p.restricoes = expandOld(p.restricoes);
+        p.evitar = expandOld(p.evitar);
+    });
+
+    tur.forEach(t=>{
                 if(!t.horario) t.horario={};
                 DIAS.forEach((_,d) => { if(!t.horario[d]) t.horario[d]={}; });
 
@@ -1046,15 +1073,15 @@
             });
         }
 
-        function toggleRestricao(d,t){const e=document.getElementById(`cell-res-${d}-${t}`);let s=(parseInt(e.dataset.state)+1)%3;e.dataset.state=s;e.className=`restricao-cell w-full h-6 rounded flex items-center justify-center font-bold cursor-pointer ${s===0?'res-livre':s===1?'res-block':'res-evitar'}`;e.firstChild.className=s===0?"fas fa-check text-[8px] opacity-0":s===1?"fas fa-times text-xs":"fas fa-exclamation text-xs";}
-        function setRestricaoState(d,t,s){const e=document.getElementById(`cell-res-${d}-${t}`);if(e){e.dataset.state=(s+2)%3;toggleRestricao(d,t);}}
+        function toggleRestricao(d,t,h){const e=document.getElementById(`cell-res-${d}-${t}-${h}`);let s=(parseInt(e.dataset.state)+1)%3;e.dataset.state=s;e.className=`restricao-cell res-${s===0?'livre':s===1?'block':'evitar'} w-full h-4 rounded cursor-pointer flex items-center justify-center font-bold text-[8px]`;}
+        function setRestricaoState(d,t,h,s){const e=document.getElementById(`cell-res-${d}-${t}-${h}`);if(e){e.dataset.state=(s+2)%3;toggleRestricao(d,t,h);}}
         function salvarProfessor(){
             const n=document.getElementById('inputProf').value.trim();
             const id=document.getElementById('editProfId').value;
             const ds=Array.from(document.querySelectorAll('#checkProfDisc input[type="checkbox"]:checked')).map(c=>c.value);
             if(!n||!ds.length)return uiAlert("Dados incompletos.");
             const r=[],e=[];
-            DIAS.forEach((dayName,d)=>TURNOS.forEach(t=>{const el=document.getElementById(`cell-res-${d}-${t.id}`);if(el){const s=parseInt(el.dataset.state);if(s===1)r.push(`${d}-${t.id}`);if(s===2)e.push(`${d}-${t.id}`)}}));
+            DIAS.forEach((dayName,d)=>TURNOS.forEach(t=>{HORARIOS.forEach(h=>{const el=document.getElementById(`cell-res-${d}-${t.id}-${h}`);if(el){const s=parseInt(el.dataset.state);if(s===1)r.push(`${d}-${t.id}-${h}`);if(s===2)e.push(`${d}-${t.id}-${h}`)}})}))
             const sr = document.getElementById('chkProfSemRestricao').checked;
             const o={id:id?id:genId(),nome:n,disciplinas:ds,restricoes:r,evitar:e,semRestricao:sr};
             
@@ -1096,9 +1123,9 @@
             }
             salvar();renderProfList();renderTurList();renderDisc();
         }
-        function editarProfessor(id){const p=prof.find(x=>x.id===id);if(!p)return;document.getElementById('inputProf').value=p.nome;document.getElementById('editProfId').value=p.id;document.querySelectorAll('#checkProfDisc input[type="checkbox"]').forEach(c=>c.checked=p.disciplinas.includes(c.value));document.getElementById('chkProfSemRestricao').checked=!!p.semRestricao;DIAS.forEach((dayName,d)=>TURNOS.forEach(t=>setRestricaoState(d,t.id,0)));p.restricoes.forEach(x=>{const[d,t]=x.split('-');setRestricaoState(d,t,1)});p.evitar.forEach(x=>{const[d,t]=x.split('-');setRestricaoState(d,t,2)});document.getElementById('btnSalvarProf').innerText="Atualizar";document.getElementById('btnCancelEditProf').classList.remove('hidden');}
+        function editarProfessor(id){const p=prof.find(x=>x.id===id);if(!p)return;document.getElementById('inputProf').value=p.nome;document.getElementById('editProfId').value=p.id;document.querySelectorAll('#checkProfDisc input[type="checkbox"]').forEach(c=>c.checked=p.disciplinas.includes(c.value));document.getElementById('chkProfSemRestricao').checked=!!p.semRestricao;DIAS.forEach((dayName,d)=>TURNOS.forEach(t=>HORARIOS.forEach(h=>setRestricaoState(d,t.id,h,0))));p.restricoes.forEach(x=>{const[d,t,h]=x.split('-');setRestricaoState(d,t,h,1)});p.evitar.forEach(x=>{const[d,t,h]=x.split('-');setRestricaoState(d,t,h,2)});document.getElementById('btnSalvarProf').innerText="Atualizar";document.getElementById('btnCancelEditProf').classList.remove('hidden');}
         function cancelarEdicaoProf(){resetFormProf();}
-        function resetFormProf(){document.getElementById('inputProf').value='';document.getElementById('editProfId').value='';document.getElementById('chkProfSemRestricao').checked=false;document.querySelectorAll('#checkProfDisc input[type="checkbox"]').forEach(c=>c.checked=false);DIAS.forEach((dayName,d)=>TURNOS.forEach(t=>setRestricaoState(d,t.id,0)));document.getElementById('btnSalvarProf').innerText="Salvar";document.getElementById('btnCancelEditProf').classList.add('hidden');}
+        function resetFormProf(){document.getElementById('inputProf').value='';document.getElementById('editProfId').value='';document.getElementById('chkProfSemRestricao').checked=false;document.querySelectorAll('#checkProfDisc input[type="checkbox"]').forEach(c=>c.checked=false);DIAS.forEach((dayName,d)=>TURNOS.forEach(t=>HORARIOS.forEach(h=>setRestricaoState(d,t.id,h,0))));document.getElementById('btnSalvarProf').innerText="Salvar";document.getElementById('btnCancelEditProf').classList.add('hidden');}
         function removerProfessor(id){
             uiConfirm("Excluir?",()=>{
                 removerProfessorDeTodasAlocacoes(id);
@@ -1317,12 +1344,12 @@
         }
 
         // --- Validações ---
-        function restricoesIgnoradas(pidStr, d, tCode) {
-            return String(pidStr||'').split(',').filter(Boolean).map(pid=>prof.find(x=>x.id==pid)).filter(p=>p && p.restricoes.includes(`${d}-${tCode}`));
+        function restricoesIgnoradas(pidStr, d, tCode, h) {
+            return String(pidStr||'').split(',').filter(Boolean).map(pid=>prof.find(x=>x.id==pid)).filter(p=>p && p.restricoes.includes(`${d}-${tCode}-${h}`));
         }
 
-        function temRestricaoIgnoradaAlocacao(aloc, d, tCode) {
-            return !!(aloc && restricoesIgnoradas(aloc.split('|')[0], d, tCode).length);
+        function temRestricaoIgnoradaAlocacao(aloc, d, tCode, h) {
+            return !!(aloc && restricoesIgnoradas(aloc.split('|')[0], d, tCode, h).length);
         }
 
         function verificarConflitoProfessorOcupado(pidStr, d, tCode, h, tid, selfIdx) {
@@ -1351,7 +1378,7 @@
             const pidsToCheck = String(pidStr).split(',').filter(Boolean);
             for(let pid of pidsToCheck){
                 const p = prof.find(x => x.id == pid); if(!p) continue;
-                if(p.restricoes.includes(`${d}-${tCode}`)) return `Prof. ${p.nome} Bloqueado nesse horário`;
+                if(p.restricoes.includes(`${d}-${tCode}-${h}`)) return `Prof. ${p.nome} Bloqueado nesse horário`;
             }
             return verificarConflitoProfessorOcupado(pidStr, d, tCode, h, tid, selfIdx);
         }
@@ -1360,6 +1387,7 @@
             if(ignoreAmb||!ambTipoStr) return null;
             const me = tur.find(x=>x.id===tid);
             for(let ambTipo of tokensAmbiente(ambTipoStr)) {
+                if (ambTipo.toUpperCase() === 'SEM AMBIENTE') continue;
                 const base = getBaseAmb(ambTipo);
                 if(!base) continue; 
 
@@ -1769,8 +1797,8 @@
                         DIAS.forEach((dayName, dx) => {
                             const k = `${tr.id}${hr}`;
                             let cellHTML = '-';
-                            let isRestrito = px.restricoes && px.restricoes.includes(`${dx}-${tr.id}`);
-                            let isEvitar = px.evitar && px.evitar.includes(`${dx}-${tr.id}`);
+                            let isRestrito = px.restricoes && px.restricoes.includes(`${dx}-${tr.id}-${hr}`);
+                            let isEvitar = px.evitar && px.evitar.includes(`${dx}-${tr.id}-${hr}`);
 
                             let alocacoes = [];
                             tur.forEach(t => {
@@ -1844,7 +1872,7 @@
 
                             let cellHTML = '-';
                             if(achadas.length > 0) {
-                                const conflito = item.isGrupo ? achadas.length > item.qtd : achadas.length > 1;
+                                const conflito = (item.nome.toUpperCase() !== 'SEM AMBIENTE') && (item.isGrupo ? achadas.length > item.qtd : achadas.length > 1);
                                 let bg = conflito ? 'bg-red-200 border-l-4 border-red-600' : 'bg-yellow-50';
                                 cellHTML = `<div class="p-1 ${bg} rounded text-[10px] leading-tight text-center">` + achadas.map(a => `<b class="text-gray-800">${a.turma}</b><br><span class="text-indigo-700 font-bold">${a.dn}</span><br><span class="text-gray-500 italic">${a.profs}</span>`).join('<hr class="my-1 border-gray-300">') + `</div>`;
                             }
@@ -1901,7 +1929,7 @@
                                         return pf ? formatarNome(pf.nome) : '?';
                                     }).join(' + ');
                                     const hard = verificarConflitoProfessorOcupado(pidsVinculados,dx,tr.id,hr,t.id,idx);
-                                    const restritos = restricoesIgnoradas(pidsVinculados,dx,tr.id);
+                                    const restritos = restricoesIgnoradas(pidsVinculados,dx,tr.id,hr);
                                     const isSel = (pidsVinculados==pid&&dnome==dn);
                                     let st="", tx=cnomes, ds="";
                                     if(hard&&!isSel){st="color:#ef4444;font-weight:bold;";tx+=" (X)";ds="disabled";}
@@ -1925,8 +1953,8 @@
                             
                             if(aloc) {
                                 const isOcupado = verificarConflitoProfessorOcupado(pid, dx, tr.id, hr, t.id, idx);
-                                const isRestrito = restricoesIgnoradas(pid, dx, tr.id).length > 0;
-                                const isEvitar = temEvitar(pid, dx, tr.id);
+                                const isRestrito = restricoesIgnoradas(pid, dx, tr.id, hr).length > 0;
+                                const isEvitar = temEvitar(pid, dx, tr.id, hr);
                                 const isSalaErr = !ignoreAmb && verificarSala(sl, dx, tr.id, hr, t.id, idx);
                                 const cargaLim = disc.find(x => x.nome === dn)?.carga || 2;
                                 const isExcedente = (cnt[dn] || 0) > cargaLim;
@@ -2012,7 +2040,7 @@
 
                     profsDaDisc.forEach(pid => {
                         const p = prof.find(x=>x.id==pid);
-                        if(p && p.restricoes.includes(`${d}-${tr.id}`)) {
+                        if(p && p.restricoes.includes(`${d}-${tr.id}-${h}`)) {
                             temBloqueio = true;
                             motivos.push(`${p.nome} marcou indisponível nesse turno`);
                         }
@@ -2085,7 +2113,7 @@
                         if(val) val.split('&').forEach(aloc=>{
                             const dn = aloc.split('|')[1];
                             if(cnt[dn]!==undefined) cnt[dn]++;
-                            const ignoradas = restricoesIgnoradas(aloc.split('|')[0], d, trId);
+                            const ignoradas = restricoesIgnoradas(aloc.split('|')[0], d, trId, hr);
                             ignoradas.forEach(p=>rel.avisos.push(`<b>${t.nome}:</b> ${dn} em ${dayName} ${k} ignora restrição de ${p.nome}.`));
                         });
                     }
@@ -2100,7 +2128,7 @@
                     usoTurnos.diasSemAula.forEach(dia => rel.erros.push(`<b>${t.nome}:</b> precisa ter pelo menos 1 turno em ${DIAS[dia]}.`));
                 }
                 if(t.turnosFlexiveis !== false) {
-                    usoTurnos.turnosIncompletos.forEach(slot => rel.avisos.push(`<b>${t.nome}:</b> ${DIAS[slot.d]} ${slot.t} ficou incompleto (${slot.aulas}/${NUM_AULAS} aulas).`));
+                    // Warning "ficou incompleto" was removed as requested.
                 }
             });
             if(!ignoreAmb){
@@ -2121,7 +2149,7 @@
                                     countedForThisTurma.add(s);
                                     const base = getBaseAmb(s);
                                     if (base) {
-                                        if (!base.isGeneric) {
+                                        if (!base.isGeneric && s.toUpperCase() !== 'SEM AMBIENTE') {
                                             usedSpecifics.push(s);
                                             if(!turmasBySpecific[s]) turmasBySpecific[s] = [];
                                             turmasBySpecific[s].push(t);
@@ -2148,10 +2176,10 @@
             return rel;
         }
 
-        function temEvitar(pidStr, d, tCode) {
+        function temEvitar(pidStr, d, tCode, h) {
             for(let pid of String(pidStr).split(',').filter(Boolean)){
                 const p = prof.find(x=>x.id==pid);
-                if(p && p.evitar && p.evitar.includes(`${d}-${tCode}`)) return true;
+                if(p && p.evitar && p.evitar.includes(`${d}-${tCode}-${h}`)) return true;
             }
             return false;
         }
@@ -2181,16 +2209,28 @@
             return false;
         }
 
+        
         function violariaTresTurnos(pid, d, tCode, lista, extras=[]) {
-            const turnos = new Set();
-            TURNOS.forEach(tr => {
-                if(tr.id === tCode || professorTemAulaTurno(lista, pid, d, tr.id, extras)) turnos.add(tr.id);
-            });
-            // Sinaliza como ruim se o professor ficar com Manhã e Noite no mesmo dia (o que também cobre os 3 turnos)
-            return turnos.has('M') && turnos.has('N');
+            // Avoid M and N on the same day ONLY if early M and late N
+            const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
+            const ultimosNoite = HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1));
+            
+            let temManhaInicial = false;
+            let temNoiteFinal = false;
+            
+            // Check M
+            if (tCode === 'M' && extras.some(e => e.t === 'M' && primeirosManha.includes(e.h))) temManhaInicial = true;
+            else temManhaInicial = primeirosManha.some(h => professorTemAulaHorario(lista, pid, d, 'M', h, extras));
+
+            // Check N
+            if (tCode === 'N' && extras.some(e => e.t === 'N' && ultimosNoite.includes(e.h))) temNoiteFinal = true;
+            else temNoiteFinal = ultimosNoite.some(h => professorTemAulaHorario(lista, pid, d, 'N', h, extras));
+
+            return temManhaInicial && temNoiteFinal;
         }
 
         function violariaNoiteManha(pid, lista, extras=[]) {
+            // Updated to only avoid the last two hours of the night and the first two hours of the morning for sequential days
             const ultimosNoite = HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1));
             const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
             for(let d=0; d<DIAS.length-1; d++) {
@@ -2296,8 +2336,8 @@
                             const pids = aloc.split('|')[0].split(',').filter(Boolean);
                             pids.forEach(pid => {
                                 const p = prof.find(x=>x.id==pid);
-                                if(p && p.restricoes && p.restricoes.includes(`${d}-${trId}`)) pen += pesoRestricao('restricao');
-                                if(p && p.evitar && p.evitar.includes(`${d}-${trId}`)) pen += pesoRestricao('evitar');
+                                if(p && p.restricoes && p.restricoes.includes(`${d}-${trId}-${hr}`)) pen += pesoRestricao('restricao');
+                                if(p && p.evitar && p.evitar.includes(`${d}-${trId}-${hr}`)) pen += pesoRestricao('evitar');
                             });
                         });
                     }
@@ -2319,7 +2359,7 @@
                                 countedForThisTurma.add(s);
                                 const base = getBaseAmb(s);
                                 if(base) {
-                                    if(!base.isGeneric) usedSpecifics.push(s);
+                                    if(!base.isGeneric && s.toUpperCase() !== 'SEM AMBIENTE') usedSpecifics.push(s);
                                 }
                             });
                         });
@@ -2410,8 +2450,13 @@
                         const temT = turnosComAula.has('T');
                         const temN = turnosComAula.has('N');
                         
+                        const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
+                        const ultimosNoite = HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1));
+                        let temManhaInicial = primeirosManha.some(h => professorTemAulaHorario(lista, px.id, d, 'M', h, []));
+                        let temNoiteFinal = ultimosNoite.some(h => professorTemAulaHorario(lista, px.id, d, 'N', h, []));
+                        
                         if (temM && temT && temN) pen += pesoRestricao('tresTurnos');
-                        else if (temM && temN) pen += pesoRestricao('manhaNoiteMesmoDia');
+                        if (temManhaInicial && temNoiteFinal) pen += pesoRestricao('manhaNoiteMesmoDia');
                     }
                 });
                 if(!px.semRestricao && diasComAula.size >= DIAS.length) pen += pesoRestricao('todosDias');
@@ -2507,14 +2552,16 @@
                                     }
                                 });
 
-                                if (base) {
-                                    if (base.isGeneric) {
-                                        if (uso >= base.obj.qtd || t.alunos > base.obj.cap) return { ok: false, salas: [] };
+                                if (sl.toUpperCase() !== 'SEM AMBIENTE') {
+                                    if (base) {
+                                        if (base.isGeneric) {
+                                            if (uso >= base.obj.qtd || t.alunos > base.obj.cap) return { ok: false, salas: [] };
+                                        } else {
+                                            if (uso >= 1 || t.alunos > base.obj.cap) return { ok: false, salas: [] };
+                                        }
                                     } else {
-                                        if (uso >= 1 || t.alunos > base.obj.cap) return { ok: false, salas: [] };
+                                        if (uso >= 1) return { ok: false, salas: [] };
                                     }
-                                } else {
-                                    if (uso >= 1) return { ok: false, salas: [] };
                                 }
                             }
                             rArr.push(sl);
@@ -2555,7 +2602,7 @@
 
             const goodSlots = []; const softBadSlots = [];
             for(let s of slots) {
-                let ev = params.some(p => temEvitar(p.pids, s.d, s.t));
+                let ev = params.some(p => temEvitar(p.pids, s.d, s.t, s.h));
                 if(ev) softBadSlots.push(s); else goodSlots.push(s);
             }
             const orderedSlots = [...goodSlots, ...softBadSlots];
@@ -2666,7 +2713,7 @@
                                         if(!tentativa.ok) continue;
                                     }
 
-                                    const evita = params.some(p => temEvitar(p.pids, d, tr.id));
+                                    const evita = params.some(p => temEvitar(p.pids, d, tr.id, h));
                                     const maiorFalta = Math.max(...grupo.map(gdn => {
                                         const c = disc.find(x => x.nome === gdn)?.carga || 2;
                                         return c - (cnt[gdn] || 0);
@@ -2862,7 +2909,7 @@
                             for(let s of slots) {
                                 const tentativa = avaliarBlocoEmSlot(t, params, tmp, s, b);
                                 if(!tentativa.ok) continue;
-                                let ev = params.some(p => temEvitar(p.pids, s.d, s.t));
+                                let ev = params.some(p => temEvitar(p.pids, s.d, s.t, s.h));
                                 const item = {...s, b, salas: tentativa.salas};
                                 if(ev || tentativa.softBad) softBadSlots.push(item); else goodSlots.push(item);
                             }
@@ -2903,14 +2950,16 @@
                                                             }
                                                         });
                                                         
-                                                        if (base) {
-                                                            if (base.isGeneric) {
-                                                                if (uso >= base.obj.qtd || t.alunos > base.obj.cap) { free=false; break; }
+                                                        if (sl.toUpperCase() !== 'SEM AMBIENTE') {
+                                                            if (base) {
+                                                                if (base.isGeneric) {
+                                                                    if (uso >= base.obj.qtd || t.alunos > base.obj.cap) { free=false; break; }
+                                                                } else {
+                                                                    if (uso >= 1 || t.alunos > base.obj.cap) { free=false; break; }
+                                                                }
                                                             } else {
-                                                                if (uso >= 1 || t.alunos > base.obj.cap) { free=false; break; }
+                                                                if (uso >= 1) { free=false; break; } 
                                                             }
-                                                        } else {
-                                                            if (uso >= 1) { free=false; break; } 
                                                         }
                                                         
                                                         if(!free) { fSala = true; break; }
@@ -3098,14 +3147,23 @@
         }
 
         function violariaTresTurnosIndexado(pid, d, tCode, idx, extras=[]) {
-            const turnos = new Set();
-            TURNOS.forEach(tr => {
-                if(tr.id === tCode || professorTemTurnoIndexado(idx, pid, d, tr.id, extras)) turnos.add(tr.id);
-            });
-            return turnos.has('M') && turnos.has('N');
+            const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
+            const ultimosNoite = HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1));
+            
+            let temManhaInicial = false;
+            let temNoiteFinal = false;
+
+            if (tCode === 'M' && extras.some(e => e.t === 'M' && primeirosManha.includes(e.h))) temManhaInicial = true;
+            else temManhaInicial = primeirosManha.some(h => professorTemSlotIndexado(idx, pid, d, 'M', h, extras));
+
+            if (tCode === 'N' && extras.some(e => e.t === 'N' && ultimosNoite.includes(e.h))) temNoiteFinal = true;
+            else temNoiteFinal = ultimosNoite.some(h => professorTemSlotIndexado(idx, pid, d, 'N', h, extras));
+
+            return temManhaInicial && temNoiteFinal;
         }
 
         function violariaNoiteManhaIndexado(pid, idx, extras=[]) {
+            // Updated to only avoid the last two hours of the night and the first two hours of the morning for sequential days
             const ultimosNoite = HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1));
             const primeirosManha = HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS));
             for(let d=0; d<DIAS.length-1; d++) {
@@ -3148,7 +3206,7 @@
             for(const pid of pidsFromStr(pidStr)) {
                 const p = prof.find(x=>x.id==pid);
                 if(!p) continue;
-                if(p.restricoes && p.restricoes.includes(`${d}-${tCode}`)) return false;
+                if(p.restricoes && p.restricoes.includes(`${d}-${tCode}-${h}`)) return false;
                 if(professorTemSlotIndexado(idx, pid, d, tCode, h)) return false;
             }
             return true;
@@ -3162,8 +3220,8 @@
         function salaLivreIntervaloIndexado(idx, d, tCode, startH, duracao, sala, reservas) {
             for(let k=0; k<duracao; k++) {
                 const key = chaveSlotIndexado(d, tCode, startH+k);
-                if(salaOcupadaIndexada(idx, d, tCode, startH+k, sala)) return false;
-                if(reservas && reservas.has(`${key}|${sala}`)) return false;
+                if(sala.toUpperCase() !== 'SEM AMBIENTE' && salaOcupadaIndexada(idx, d, tCode, startH+k, sala)) return false;
+                if(sala.toUpperCase() !== 'SEM AMBIENTE' && reservas && reservas.has(`${key}|${sala}`)) return false;
             }
             return true;
         }
@@ -3252,7 +3310,7 @@
 
         function pontuarSlotIndexado(t, params, idx, s, b, tentativa, rodada) {
             let score = 0;
-            if(params.some(p => temEvitar(p.pids, s.d, s.t))) score += pesoRestricao('evitar') * 10;
+            if(params.some(p => temEvitar(p.pids, s.d, s.t, s.h))) score += pesoRestricao('evitar') * 10;
             if(tentativa.softBad) score += Math.max(pesoRestricao('manhaNoiteMesmoDia'), pesoRestricao('tresTurnos')) / 2;
             if(b === 1 && params.some(p => !p.splits && p.carga > 2 && p.missing > 1)) score += pesoRestricao('fragmentacaoBlocos') * 1.5;
             const ocupSala = idx.salaSlot.get(chaveSlotIndexado(s.d, s.t, s.h));
@@ -3427,7 +3485,7 @@
                                     candidatos.push({
                                         params,
                                         found: {d, t:tr.id, h, b:1, salas:tentativa.salas},
-                                        evita: params.some(p=>temEvitar(p.pids, d, tr.id)),
+                                        evita: params.some(p=>temEvitar(p.pids, d, tr.id, h)),
                                         softBad: tentativa.softBad,
                                         maiorFalta: Math.max(...faltasGrupo)
                                     });
@@ -3547,7 +3605,7 @@
                 // FIX #1: se professor não existe, pula este pid (não bloqueia o slot)
                 if(!p) continue;
                 // FIX #1: bloqueio explícito do professor no turno
-                if(p.restricoes.includes(`${d}-${tCode}`)) return true;
+                if(p.restricoes.includes(`${d}-${tCode}-${h}`)) return true;
                 for(let l of lst){
                     if (!l.slotsAtivos.includes(`${d}-${tCode}`)) continue;
                     const val=l.horario[d][k];
@@ -3572,6 +3630,48 @@
             if(!content) content = `<div class="text-green-600 text-center py-4 font-bold">Nenhum conflito encontrado.</div>`;
             c.innerHTML = content;
             document.getElementById('reportModal').classList.remove('hidden');
+        }
+
+        
+        function formatRestricoes(restricoes) {
+            if (!restricoes) return '';
+            const map = {};
+            restricoes.forEach(r => {
+                const parts = r.split('-');
+                if (parts.length === 3) {
+                    const key = parts[0] + '-' + parts[1];
+                    if (!map[key]) map[key] = [];
+                    if (!map[key].includes(parts[2])) map[key].push(parts[2]);
+                } else if (parts.length === 2) {
+                    const key = r;
+                    if (!map[key]) map[key] = [];
+                    for(let h=1; h<=NUM_AULAS; h++) if (!map[key].includes(String(h))) map[key].push(String(h));
+                }
+            });
+            return Object.keys(map).map(k => {
+                map[k].sort((a,b) => parseInt(a) - parseInt(b));
+                return k + map[k].join('');
+            }).join('|');
+        }
+
+        function parseRestricoes(str) {
+            if (!str) return [];
+            const res = [];
+            str.split('|').map(x => x.trim()).filter(Boolean).forEach(r => {
+                const match = r.match(/^(\d+)-([MTN])(\d*)$/);
+                if (match) {
+                    const d = match[1];
+                    const t = match[2];
+                    const hours = match[3];
+                    if (hours) {
+                        hours.split('').forEach(h => res.push(`${d}-${t}-${h}`));
+                    } else {
+                        // Old format (e.g., "1-M") without hours, will be expanded by migrar or here
+                        res.push(r);
+                    }
+                }
+            });
+            return res;
         }
 
         function exportarCRICAtual() {
@@ -3600,7 +3700,7 @@
                 let ambsFormatados = (d.amb||[]).join('+');
                 cric+=`DISC§${d.nome}§${d.carga}§${ambsFormatados}§${d.splits||''}§§§\n`;
             });
-            prof.forEach(p=>cric+=`PROF§${p.nome}§${p.disciplinas.join('|')}§${p.restricoes.join('|')}§${p.evitar.join('|')}§${p.semRestricao?'semRestricao':''}§§\n`);
+            prof.forEach(p=>cric+=`PROF§${p.nome}§${p.disciplinas.join('|')}§${formatRestricoes(p.restricoes)}§${formatRestricoes(p.evitar)}§${p.semRestricao?'semRestricao':''}§§\n`);
             lista.forEach(t=>{
                 const profs = t.professores ? Object.entries(t.professores).map(([k,v])=>{
                     const nomes = v.split(',').filter(Boolean).map(id=>prof.find(p=>p.id==id)?.nome).filter(Boolean).join(',');
@@ -3674,8 +3774,8 @@
                 if (c[0] === 'PROF') {
                     if (!prof.find(p => norm(p.nome) === norm(c[1]))) {
                         const id = genId();
-                        const rests = c[3] ? c[3].split('|').map(x => x.trim()).filter(Boolean) : [];
-                        const evits = c[4] ? c[4].split('|').map(x => x.trim()).filter(Boolean) : [];
+                        const rests = parseRestricoes(c[3]);
+                        const evits = parseRestricoes(c[4]);
                         const semRestricao = c[5] ? c[5].toLowerCase().includes('semrestricao') : false;
                         prof.push({ id, nome: c[1], disciplinas: c[2] ? c[2].split('|').map(x => x.trim()).filter(Boolean) : [], restricoes: rests, evitar: evits, semRestricao: semRestricao });
                         mp[norm(c[1])] = id;
@@ -3846,7 +3946,7 @@
                             });
                         });
                         if(!achadas.length) return '<td class="border">-</td>';
-                        const conflito = item.isGrupo ? achadas.length > item.qtd : achadas.length > 1;
+                        const conflito = (item.nome.toUpperCase() !== 'SEM AMBIENTE') && (item.isGrupo ? achadas.length > item.qtd : achadas.length > 1);
                         const txt = achadas.map((a,ix)=>`<div class="${ix>0?'border-t border-gray-300 mt-1 pt-1':''}"><div class="print-cell-truncate"><b>${a.turma}</b></div><div class="print-cell-truncate">${a.dn}</div><div class="print-cell-truncate italic">${a.profs}</div><div class="print-cell-truncate text-[9px]">${a.sala}</div></div>`).join('');
                         return `<td class="border align-top ${conflito?'bg-red-100 text-red-800 font-semibold':''}" style="max-width: 0;">${txt}</td>`;
                     };
