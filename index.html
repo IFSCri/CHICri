@@ -3919,7 +3919,8 @@
 
             if(tipo==='alunos'){
                 const grp={};
-                tur.forEach(t=>{const c=t.curso||'Geral';if(!grp[c])grp[c]=[];grp[c].push(t)});
+                tur.filter(t => turmasSelecionadasAuto.has(t.id)).forEach(t=>{const c=t.curso||'Geral';if(!grp[c])grp[c]=[];grp[c].push(t)});
+                //tur.forEach(t=>{const c=t.curso||'Geral';if(!grp[c])grp[c]=[];grp[c].push(t)});
                 Object.keys(grp).sort().forEach(c=>{
                     p.innerHTML+=`<h2 class="text-xl font-bold mt-4 border-b border-black">${c}</h2>`;
                     grp[c].sort((a,b)=>a.nome.localeCompare(b.nome)).forEach(t=>{
