@@ -123,9 +123,15 @@
 
                 <div class="w-px bg-green-500 mx-1 h-6"></div>
 
-                <button onclick="exportarCRIC()" class="text-xs bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded shadow transition">
-                    <i class="fas fa-download"></i>
-                </button>
+                <div class="relative group">
+                    <button onclick="exportarCRIC()" class="text-xs bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded shadow transition flex items-center">
+                        <i class="fas fa-download"></i>
+                    </button>
+                    <div class="absolute right-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 p-2">
+                        <label class="block text-[10px] text-gray-500 font-bold mb-1">Nome do arquivo:</label>
+                        <input type="text" id="nomeArquivoExport" value="CHICri" placeholder="Nome..." class="w-full border rounded p-1 text-xs text-gray-800 focus:outline-none focus:border-green-500" onclick="event.stopPropagation()">
+                    </div>
+                </div>
 
                 <div class="relative group">
                     <button class="text-xs bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded shadow transition flex items-center">
@@ -3718,7 +3724,9 @@
                 }
             })})});
             const b=new Blob([cric],{type:'text/cric'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;const dh=new Date().toLocaleString('pt-BR').replace(/[\/:]/g,'-').replace(', ','_');
-            a.download=`${isAutoBackup ? 'AutoBackup_' : ''}CHICri_${dh}.cric`;
+            const nomeInput = document.getElementById('nomeArquivoExport');
+            const nomeBase = (nomeInput && nomeInput.value.trim() !== '') ? nomeInput.value.trim() : 'CHICri';
+            a.download=`${isAutoBackup ? 'AutoBackup_' : ''}${nomeBase}_${dh}.cric`;
             a.click();
         }
 
