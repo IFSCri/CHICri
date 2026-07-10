@@ -43,17 +43,19 @@
 
     <nav class="bg-green-700 text-white p-3 shadow-lg sticky top-0 z-40">
         <div class="container mx-auto flex flex-wrap justify-between items-center gap-2">
-            <h1 class="text-lg font-bold"><i class="fas fa-calendar-alt mr-2"></i>CHICri v2.0</h1>
+            <div class="flex flex-wrap items-center gap-2">
+                <h1 class="text-lg font-bold"><i class="fas fa-calendar-alt mr-2"></i>CHICri v2.0</h1>
+            </div>
             
             <div class="flex gap-2 items-center">
-                <div class="flex items-center bg-green-800 rounded px-2 py-1 border border-green-600 mr-2" title="Quantidade de aulas por turno">
+                <div class="flex items-center bg-green-800 rounded px-2 py-1 border border-green-600 mr-1" title="Quantidade de aulas por turno">
                     <i class="fas fa-clock mr-1 text-xs text-green-300"></i>
-                    <input type="number" id="cfgAulas" min="1" max="10" value="4" class="w-8 text-center text-xs bg-transparent text-white focus:outline-none font-bold" onchange="atualizarConfigAulas(this.value)">
+                    <input type="number" id="cfgAulas" min="1" max="10" value="4" class="w-6 text-center text-xs bg-transparent text-white focus:outline-none font-bold" onchange="atualizarConfigAulas(this.value)">
                 </div>
 
                 <div class="relative group">
                     <button class="text-xs bg-green-800 hover:bg-green-900 text-white py-1 px-3 rounded shadow transition font-bold border border-green-600 flex items-center mr-2">
-                        <i class="fas fa-sliders-h mr-1"></i> Pesos
+                        <i class="fas fa-sliders-h mr-1"></i>
                     </button>
                     <div class="absolute right-0 mt-0 w-80 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 p-3 text-xs text-gray-700">
                         <div class="font-bold text-gray-700 mb-2">Pesos das restrições globais</div>
@@ -101,16 +103,22 @@
                         <i class="fas fa-palette mr-1"></i> Legenda
                     </button>
                     <div class="absolute right-0 mt-0 w-56 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 p-3 text-xs text-gray-700">
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-red-200 border-l-4 border-red-600 inline-block mr-2"></span> Restrição (Bloqueio)</div>
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-yellow-200 border-l-4 border-yellow-500 inline-block mr-2"></span> Evitar Turno</div>
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-gray-300 border-l-4 border-black inline-block mr-2"></span> Choque Prof (2 turmas)</div>
-                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-gray-200 border-l-4 border-gray-500 inline-block mr-2"></span> Excesso de Carga</div>
-                        <div class="flex items-center"><span class="w-3 h-3 bg-orange-200 border-l-4 border-orange-600 inline-block mr-2"></span> Conflito de Sala</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-[16px] border-l-red-600 inline-block mr-2"></span> Restrição (Bloqueio)</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-[16px] border-l-yellow-500 inline-block mr-2"></span> Evitar Turno</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-[16px] border-l-black inline-block mr-2"></span> Choque Prof (2 turmas)</div>
+                        <div class="flex items-center mb-2"><span class="w-3 h-3 bg-white border border-gray-200 border-l-[16px] border-l-blue-600 inline-block mr-2"></span> Excesso de Carga</div>
+                        <div class="flex items-center"><span class="w-3 h-3 bg-white border border-gray-200 border-l-[16px] border-l-fuchsia-600 inline-block mr-2"></span> Conflito de Sala</div>
                     </div>
                 </div>
 
                 <button onclick="iniciarGeracaoAutomatica()" class="text-xs bg-purple-500 hover:bg-purple-600 text-white py-1 px-3 rounded shadow transition font-bold border border-purple-400 mr-1" title="Gerar Horário Automaticamente">
                     <i class="fas fa-magic mr-1"></i> Auto
+                </button>
+                                <label class="text-xs bg-white/15 hover:bg-white/25 text-white py-1 px-3 rounded shadow transition font-bold flex items-center border border-white/30 cursor-pointer" title="Marcar/Desmarcar todas para Geracao Automatica e Impressao">
+                    <input type="checkbox" id="chkToggleAutoAll" class="mr-2 accent-purple-600" checked onchange="toggleAllAuto(this.checked)"> <i class="fas fa-magic mr-1"></i> 🖨️ Seleção
+                </label>
+                <button onclick="toggleAllGrades()" id="btnToggleAll" class="text-xs bg-white/15 hover:bg-white/25 text-white py-1 px-3 rounded shadow transition font-bold flex items-center border border-white/30">
+                    <i class="fas fa-expand-alt mr-2"></i> Expandir
                 </button>
                 <button onclick="desfazerGeracao()" id="btnUndo" class="text-xs bg-gray-500 hover:bg-gray-600 text-white py-1 px-3 rounded shadow transition font-bold border border-gray-400 mr-2 hidden" title="Desfazer Última Geração Auto">
                     <i class="fas fa-undo"></i>
@@ -288,12 +296,12 @@
 
             <!-- View Turmas -->
             <div id="viewTurmas">
-                <div class="flex justify-end mb-2 gap-2">
-                    <label class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 py-1 px-3 rounded shadow transition font-bold flex items-center border border-purple-300 cursor-pointer" title="Marcar/Desmarcar todas para Geração Automática">
-                        <input type="checkbox" id="chkToggleAutoAll" class="mr-2 accent-purple-600" checked onchange="toggleAllAuto(this.checked)"> <i class="fas fa-magic mr-1"></i> Selecionar Todas
+                <div class="hidden">
+                    <label class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-800 py-1 px-3 rounded shadow transition font-bold flex items-center border border-purple-300 cursor-pointer" title="Marcar/Desmarcar todas para Geração Automática e Impressão">
+                        <input type="checkbox" id="chkToggleAutoAllView" class="mr-2 accent-purple-600" checked onchange="toggleAllAuto(this.checked)"> <i class="fas fa-magic mr-1"></i> Selecionar Todas
                     </label>
-                    <button onclick="toggleAllGrades()" id="btnToggleAll" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-3 rounded shadow transition font-bold flex items-center border border-gray-300">
-                        <i class="fas fa-expand-alt mr-2"></i> Expandir Tudo
+                    <button onclick="toggleAllGrades()" id="btnToggleAllView" class="text-xs bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 px-3 rounded shadow transition font-bold flex items-center border border-gray-300">
+                        <i class="fas fa-expand-alt mr-2"></i> Expandir
                     </button>
                 </div>
                 <div id="containerGrades" class="space-y-8 pb-20"></div>
@@ -471,8 +479,43 @@
         let currentTab = 'turmas'; // Controle de abas
         let editDiscNomeOriginal = ''; // Controle de edição de disciplinas
         let flagInterromper = false;
+                const CORES_DISCIPLINAS = [
+            { bg:'#eef2ff', border:'#a5b4fc', text:'#3730a3' }, // Indigo
+            { bg:'#ecfeff', border:'#67e8f9', text:'#155e75' }, // Cyan
+            { bg:'#f0fdf4', border:'#86efac', text:'#166534' }, // Green
+            { bg:'#fff7ed', border:'#fdba74', text:'#9a3412' }, // Orange
+            { bg:'#fdf2f8', border:'#f9a8d4', text:'#9d174d' }, // Pink
+            { bg:'#f5f3ff', border:'#c4b5fd', text:'#5b21b6' }, // Violet
+            { bg:'#fefce8', border:'#fde047', text:'#854d0e' }, // Yellow
+            { bg:'#ecfdf5', border:'#6ee7b7', text:'#047857' }, // Emerald
+            { bg:'#f8fafc', border:'#94a3b8', text:'#334155' }, // Slate
+            { bg:'#eff6ff', border:'#93c5fd', text:'#1d4ed8' }, // Blue
+            { bg:'#fff1f2', border:'#fda4af', text:'#be123c' }, // Rose
+            { bg:'#f7fee7', border:'#bef264', text:'#4d7c0f' }, // Lime
+            { bg:'#fffbeb', border:'#fcd34d', text:'#b45309' }, // Amber
+            { bg:'#f0f9ff', border:'#7dd3fc', text:'#0369a1' }, // Sky
+            { bg:'#ccfbf1', border:'#5eead4', text:'#0f766e' }, // Teal
+            { bg:'#fae8ff', border:'#f0abfc', text:'#a21caf' }, // Fuchsia
+            { bg:'#f3f4f6', border:'#d1d5db', text:'#374151' }, // Gray
+            { bg:'#fee2e2', border:'#fca5a5', text:'#b91c1c' }, // Red
+            { bg:'#faf5ff', border:'#d8b4fe', text:'#7e22ce' }, // Purple
+            { bg:'#ffe4e6', border:'#fecdd3', text:'#e11d48' }, // Rose 2
+            { bg:'#dcfce7', border:'#86efac', text:'#15803d' }, // Green 2
+            { bg:'#e0e7ff', border:'#a5b4fc', text:'#4338ca' }, // Indigo 2
+            { bg:'#fce7f3', border:'#fbcfe8', text:'#be185d' }, // Pink 2
+            { bg:'#ffedd5', border:'#fdba74', text:'#c2410c' }  // Orange 2
+        ];
 
-        // FIX: geração de ID mais robusta, evitando colisões em importações rápidas
+        function hashDisciplina(nome) {
+            return String(nome || '').split('').reduce((acc, ch) => ((acc * 31) + ch.charCodeAt(0)) >>> 0, 7);
+        }
+
+                function corDisciplina(nome) {
+            let index = disc.findIndex(d => d.nome === nome);
+            if(index === -1) index = hashDisciplina(nome);
+            return CORES_DISCIPLINAS[index % CORES_DISCIPLINAS.length];
+        }
+// FIX: geração de ID mais robusta, evitando colisões em importações rápidas
         const genId = () => Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,9);
 
 		function interromperGeracao() {
@@ -1012,7 +1055,8 @@
             
             document.getElementById('tagsDisciplinas').innerHTML=disc.map(d=>{
                 let ambsFormatados = (d.amb||[]).join(' + ');
-                return `<span class="bg-purple-100 px-2 py-1 rounded text-xs border border-purple-200">${d.nome} (${d.carga}h | ${d.splits?d.splits+' bloco(s)':'Auto'} | ${ambsFormatados||'-'}) <i onclick="editarDisciplina('${d.nome}')" class="fas fa-edit cursor-pointer text-blue-500 ml-1" title="Editar"></i> <i onclick="removerDisciplina('${d.nome}')" class="fas fa-times cursor-pointer text-red-500 ml-1" title="Excluir"></i></span>`;
+                const cor = corDisciplina(d.nome);
+                return `<span class="px-2 py-1 rounded text-xs border" style="background-color:${cor.bg}; border-color:${cor.border}; color:${cor.text};">${d.nome} (${d.carga}h | ${d.splits?d.splits+' bloco(s)':'Auto'} | ${ambsFormatados||'-'}) <i onclick="editarDisciplina('${d.nome}')" class="fas fa-edit cursor-pointer text-blue-500 ml-1" title="Editar"></i> <i onclick="removerDisciplina('${d.nome}')" class="fas fa-times cursor-pointer text-red-500 ml-1" title="Excluir"></i></span>`;
             }).join('');
 
             document.getElementById('checkProfDisc').innerHTML=disc.map(d=>`<label class="flex items-center space-x-1 hover:bg-gray-100 p-1 rounded"><input type="checkbox" name="profDiscCheck" value="${d.nome}" class="accent-indigo-600"><span>${d.nome}</span></label>`).join('');
@@ -1732,6 +1776,7 @@
         function toggleTurmaAuto(id) {
             if(turmasSelecionadasAuto.has(id)) turmasSelecionadasAuto.delete(id);
             else turmasSelecionadasAuto.add(id);
+            renderGrades();
         }
 
         function toggleAllAuto(checked) {
@@ -1761,8 +1806,9 @@
             t.disciplinas.forEach(dn => {
                 const carga = disc.find(x=>x.nome===dn)?.carga || 2;
                 const faltam = Math.max(0, carga - (cnt[dn] || 0));
+                const cor = corDisciplina(dn);
                 for(let i=0; i<faltam; i++) {
-                    chips.push(`<span draggable="true" ondragstart="handleLimboDragStart(event,'${t.id}','${encodeURIComponent(dn)}')" ondragend="handleDragEnd(event)" class="inline-flex items-center gap-1 max-w-[180px] bg-white border border-indigo-200 text-indigo-800 rounded px-2 py-1 shadow-sm cursor-move hover:bg-indigo-50" title="${escapeHtml(dn)}"><i class="fas fa-grip-vertical text-[9px] text-indigo-400"></i><span class="truncate">${escapeHtml(dn)}</span><span class="text-[9px] text-indigo-400">${i+1}/${faltam}</span></span>`);
+                    chips.push(`<span draggable="true" ondragstart="handleLimboDragStart(event,'${t.id}','${encodeURIComponent(dn)}')" ondragend="handleDragEnd(event)" class="inline-flex items-center gap-1 max-w-[180px] border rounded px-2 py-1 shadow-sm cursor-move" style="background-color:${cor.bg}; border-color:${cor.border}; color:${cor.text};" title="${escapeHtml(dn)}"><i class="fas fa-grip-vertical text-[9px]" style="color:${cor.border};"></i><span class="truncate">${escapeHtml(dn)}</span><span class="text-[9px] opacity-70">${i+1}/${faltam}</span></span>`);
                 }
             });
             const total = chips.length;
@@ -1896,7 +1942,13 @@
             const btn = document.getElementById('btnToggleAll');
             if(btn && tur.length > 0) {
                 const allExp = tur.every(t => expandedGrades.has(t.id));
-                btn.innerHTML = allExp ? '<i class="fas fa-compress-alt mr-2"></i> Recolher Tudo' : '<i class="fas fa-expand-alt mr-2"></i> Expandir Tudo';
+                btn.innerHTML = allExp ? '<i class="fas fa-compress-alt mr-2"></i> Recolher' : '<i class="fas fa-expand-alt mr-2"></i> Expandir';
+            }
+            const chkAllAuto = document.getElementById('chkToggleAutoAll');
+            if(chkAllAuto) {
+                const selecionadas = tur.filter(t => turmasSelecionadasAuto.has(t.id)).length;
+                chkAllAuto.checked = tur.length > 0 && selecionadas === tur.length;
+                chkAllAuto.indeterminate = selecionadas > 0 && selecionadas < tur.length;
             }
 
             const c=document.getElementById('containerGrades');
@@ -1953,8 +2005,10 @@
                                 selS=`<div class="flex items-center gap-1 mt-0.5 ${ignoreAmb?'hidden':''}"><select data-current="${escapeHtml(sl||'')}" onchange="alterarSalaSlot('${t.id}',${dx},'${tr.id}',${hr},this,${idx})" class="env-select flex-1 min-w-0 bg-transparent text-[9px] text-gray-500 focus:ring-0 cursor-pointer text-center">${opsSala}</select><button type="button" onclick="abrirEditorAmbientesSlot('${t.id}',${dx},'${tr.id}',${hr},${idx})" class="text-[9px] text-yellow-700 hover:text-yellow-900 px-1" title="Selecionar um ou mais ambientes"><i class="fas fa-layer-group"></i></button></div>`;
                             }
                             
-                            const labelD = dn ? `<div class="font-bold text-[10px] text-indigo-700 uppercase text-center border-b border-blue-200 pb-0.5 mb-0.5 w-full truncate" title="${dn}">${dn}</div>` : '';
-                            let wrapperClasses = idx > 0 ? 'border-t border-gray-300 mt-1 pt-1 ' : 'p-0.5 rounded transition-colors duration-200 ';
+                            const cor = dn ? corDisciplina(dn) : null;
+                            const labelD = dn ? `<div class="font-bold text-[10px] uppercase text-center border-b pb-0.5 mb-0.5 w-full truncate" style="color:${cor.text}; border-color:${cor.border};" title="${escapeHtml(dn)}">${escapeHtml(dn)}</div>` : '';
+                            let wrapperClasses = idx > 0 ? 'border-t border-gray-300 mt-1 pt-1 p-0.5 rounded transition-colors duration-200 ' : 'p-0.5 rounded transition-colors duration-200 ';
+                            let wrapperStyle = aloc && cor ? `background-color:${cor.bg}; box-shadow: inset 0 0 0 1px ${cor.border};` : '';
                             let allocTitle = '';
                             
                             if(aloc) {
@@ -1965,22 +2019,22 @@
                                 const cargaLim = disc.find(x => x.nome === dn)?.carga || 2;
                                 const isExcedente = (cnt[dn] || 0) > cargaLim;
 
-                                if (isOcupado) { wrapperClasses += 'bg-gray-300 border-l-4 border-black'; allocTitle = isOcupado; }
-                                else if (isRestrito) { wrapperClasses += 'bg-red-200 border-l-4 border-red-600'; allocTitle = 'Professor bloqueado neste horário'; }
-                                else if (isSalaErr) { wrapperClasses += 'bg-orange-200 border-l-4 border-orange-600'; allocTitle = isSalaErr; }
-                                else if (isEvitar) { wrapperClasses += 'bg-yellow-200 border-l-4 border-yellow-500'; allocTitle = 'Professor prefere evitar este horário'; }
-                                else if (isExcedente) { wrapperClasses += 'bg-gray-200 border-l-4 border-gray-500'; allocTitle = `Excedeu limite de aulas (${cnt[dn]}/${cargaLim})`; }
+                                if (isOcupado) { wrapperClasses += 'border-l-[16px] border-l-black'; allocTitle = isOcupado; }
+                                else if (isRestrito) { wrapperClasses += 'border-l-[16px] border-l-red-600'; allocTitle = 'Professor bloqueado neste horário'; }
+                                else if (isSalaErr) { wrapperClasses += 'border-l-[16px] border-l-fuchsia-600'; allocTitle = isSalaErr; }
+                                else if (isEvitar) { wrapperClasses += 'border-l-[16px] border-l-yellow-500'; allocTitle = 'Professor prefere evitar este horário'; }
+                                else if (isExcedente) { wrapperClasses += 'border-l-[16px] border-l-blue-600'; allocTitle = `Excedeu limite de aulas (${cnt[dn]}/${cargaLim})`; }
                             }
                             
                             const dragAllocAttrs = aloc ? ` draggable="true" ondragstart="handleAllocDragStart(event,'${t.id}',${dx},'${tr.id}',${hr},${idx})" ondragend="handleDragEnd(event)"` : '';
-                            cellHTML += `<div class="${wrapperClasses} ${aloc?'cursor-move':''}" title="${allocTitle}"${dragAllocAttrs}>${labelD}<select onchange="atualizarHorario('${t.id}',${dx},'${tr.id}',${hr},this,${idx})" class="w-full bg-transparent border-none p-0 focus:ring-0 font-semibold text-center text-[10px]">${op}</select>${selS}</div>`;
+                            cellHTML += `<div class="${wrapperClasses} ${aloc?'cursor-move':''}" style="${wrapperStyle}" title="${allocTitle}"${dragAllocAttrs}>${labelD}<select onchange="atualizarHorario('${t.id}',${dx},'${tr.id}',${hr},this,${idx})" class="w-full bg-transparent border-none p-0 focus:ring-0 font-semibold text-center text-[10px]">${op}</select>${selS}</div>`;
                         }
                         
                         if (!val) {
                             cellHTML += getMotivosBuraco(t, dx, tr.id, hr);
                         }
                         
-                        const cellBg = val ? 'bg-blue-50' : '';
+                        const cellBg = val ? 'bg-white' : '';
                         h+=`<td class="border p-1 ${cellBg} align-middle cursor-move hover:shadow-inner transition-all" draggable="true" ondragstart="handleDragStart(event, '${t.id}', ${dx}, '${tr.id}', ${hr})" ondragend="handleDragEnd(event)" ondragover="handleDragOver(event)" ondragenter="this.classList.add('bg-blue-200','opacity-80')" ondragleave="this.classList.remove('bg-blue-200','opacity-80')" ondrop="this.classList.remove('bg-blue-200','opacity-80'); handleDrop(event, '${t.id}', ${dx}, '${tr.id}', ${hr})">${cellHTML}</td>`;
                     });
                     h+=`</tr>`;
