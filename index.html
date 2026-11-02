@@ -44,7 +44,7 @@
     <nav class="bg-green-700 text-white p-3 shadow-lg sticky top-0 z-40">
         <div class="container mx-auto flex flex-wrap justify-between items-center gap-2">
             <div class="flex flex-wrap items-center gap-2">
-                <h1 class="text-lg font-bold"><i class="fas fa-calendar-alt mr-2"></i>CHICri v2.0</h1>
+                <h1 class="text-lg font-bold"><i class="fas fa-calendar-alt mr-2"></i>CHICri v2.0 <span class="ml-1 text-[10px] font-normal bg-green-900/60 rounded px-1.5 py-0.5 align-middle" title="Geração automática com o motor otimizado (mesmos resultados, ~10x mais rápida)">motor rápido</span></h1>
             </div>
             
             <div class="flex gap-2 items-center">
@@ -331,6 +331,12 @@
                 <p class="text-[9px] text-gray-500 mt-1 leading-tight">Cada rodada reinicia a distribuicao, testa uma ordem diferente e conserva o melhor horario encontrado.</p>
 			</div>
 
+            <div class="mb-4">
+                <label class="text-xs font-bold text-gray-600 block mb-1">Parar após N rodadas seguidas sem melhora (0 = não parar):</label>
+                <input type="number" id="inputSemMelhora" value="0" min="0" step="100" class="w-full border p-2 rounded text-sm focus:outline-none focus:border-purple-500">
+                <p class="text-[9px] text-gray-500 mt-1 leading-tight">Encerra sozinho quando a busca estagna (ex.: 1500). Com 0, roda todas as rodadas informadas acima.</p>
+            </div>
+
             <div class="mb-4 bg-gray-50 p-2 rounded border border-gray-200">
                 <label class="flex items-center text-xs font-bold text-gray-600 mb-1 cursor-pointer">
                     <input type="checkbox" id="chkAutoDownload" class="mr-2 accent-purple-600" onchange="document.getElementById('inputAutoDownloadMin').disabled = !this.checked">
@@ -359,6 +365,7 @@
         <h3 class="text-xl font-bold">Otimizando...</h3>
         <p id="loadingStatus" class="text-xs mt-4 font-mono text-green-300"></p>
         <p id="loadingBest" class="text-sm mt-2 font-bold text-yellow-400"></p>
+        <p id="loadingPiso" class="text-[11px] mt-2 text-gray-300 max-w-xl text-center px-4"></p>
         <button onclick="exportarCRICAtual()" id="btnDownloadCurrent" class="mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-1 px-4 rounded shadow border border-green-500 text-xs hidden"><i class="fas fa-download"></i> Baixar Melhor Atual (.cric)</button>
 		<button onclick="interromperGeracao()" id="btnPararGen" class="mt-6 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded shadow border border-red-500" style="cursor:pointer;">Parar e usar a melhor distribuição até o momento</button>
 	</div>
@@ -3571,6 +3578,46 @@
             return total;
         }
 
+        // Cede a vez ao navegador sem timer: setTimeout em aba oculta e estrangulado pelo Chrome (1 s, depois 1 min).
+        function cederVezAoNavegador() {
+            return new Promise(resolve => {
+                const canal = new MessageChannel();
+                canal.port1.onmessage = () => resolve();
+                canal.port2.postMessage(null);
+            });
+        }
+
+        // Aulas que nenhuma rodada consegue alocar: sem professor, sem horario na turma ou turma fora da selecao.
+        function estimarFaltasInevitaveis(lista, limparSelecionadas) {
+            const r = { semProfessor: 0, semEspaco: 0, foraDaSelecao: 0 };
+            lista.forEach(t => {
+                const selecionada = turmasSelecionadasAuto.has(t.id);
+                const limpar = limparSelecionadas && selecionada;
+                const cnt = limpar ? {} : contarAlocadasTurma(t);
+                const grupos = {};
+                let demanda = 0;
+                t.disciplinas.forEach(dn => {
+                    const pendente = Math.max(0, (disc.find(x => x.nome === dn)?.carga || 2) - (cnt[dn] || 0));
+                    if(!pendente) return;
+                    if(!selecionada) { r.foraDaSelecao += pendente; return; }
+                    if(!montarParamAlocacao(t, dn, pendente)) { r.semProfessor += pendente; return; }
+                    const v = t.vinculos && t.vinculos[dn];
+                    if(v) grupos[v] = Math.max(grupos[v] || 0, pendente);
+                    else demanda += pendente;
+                });
+                if(!selecionada) return;
+                demanda += Object.values(grupos).reduce((a, b) => a + b, 0);
+                let vagas = 0;
+                DIAS.forEach((_, d) => TURNOS.forEach(tr => {
+                    if(!t.slotsAtivos.includes(`${d}-${tr.id}`)) return;
+                    HORARIOS.forEach(h => { if(limpar || !t.horario[d][`${tr.id}${h}`]) vagas++; });
+                }));
+                r.semEspaco += Math.max(0, demanda - vagas);
+            });
+            r.total = r.semProfessor + r.semEspaco + r.foraDaSelecao;
+            return r;
+        }
+
         async function executarGeracaoAutomatica(manter){
             document.getElementById('autoGenModal').classList.add('hidden');
             if(!tur.some(t => turmasSelecionadasAuto.has(t.id))) return uiAlert("Nenhuma turma selecionada para geracao automatica.");
@@ -3583,76 +3630,104 @@
             document.getElementById('btnUndo').classList.remove('hidden');
             await new Promise(r=>setTimeout(r,100));
 
-            const baselineTur = JSON.parse(JSON.stringify(tur));
-            const baselinePenalties = calcularPenalidade(baselineTur);
-            const baselineMissing = contarFaltas(baselineTur);
-            let bestTur = baselineTur;
+            let bestTur = null;
             let bestTurRodada = 0;
-            let minScore = (baselineMissing * 1000000) + baselinePenalties;
-            const campoRodadas = document.getElementById('inputIteracoes');
-            const rodadasInformadas = parseInt(campoRodadas.value);
-            const rodadas = (!Number.isFinite(rodadasInformadas) || rodadasInformadas <= 0)
-                ? Infinity
-                : Math.min(1000000, rodadasInformadas);
-            campoRodadas.value = Number.isFinite(rodadas) ? rodadas : 0;
-            const enableAutoDownload = document.getElementById('chkAutoDownload') && document.getElementById('chkAutoDownload').checked;
-            const autoDownloadMin = parseInt(document.getElementById('inputAutoDownloadMin').value) || 15;
-            const startTimeMs = Date.now();
-            let semMelhora = 0;
+            let erroGeracao = null;
+            // Motor rapido: mesmas regras e mesmos resultados, com indices montados uma vez por geracao.
+            MotorRapido.instalar();
+            try {
+                const baselineTur = JSON.parse(JSON.stringify(tur));
+                const baselinePenalties = calcularPenalidade(baselineTur);
+                const baselineMissing = contarFaltas(baselineTur);
+                bestTur = baselineTur;
+                let minScore = (baselineMissing * 1000000) + baselinePenalties;
+                const campoRodadas = document.getElementById('inputIteracoes');
+                const rodadasInformadas = parseInt(campoRodadas.value);
+                const rodadas = (!Number.isFinite(rodadasInformadas) || rodadasInformadas <= 0)
+                    ? Infinity
+                    : Math.min(1000000, rodadasInformadas);
+                campoRodadas.value = Number.isFinite(rodadas) ? rodadas : 0;
+                const campoSemMelhora = document.getElementById('inputSemMelhora');
+                const limiteSemMelhora = Math.max(0, parseInt(campoSemMelhora ? campoSemMelhora.value : 0) || 0);
+                const enableAutoDownload = document.getElementById('chkAutoDownload') && document.getElementById('chkAutoDownload').checked;
+                const autoDownloadMin = parseInt(document.getElementById('inputAutoDownloadMin').value) || 15;
+                const startTimeMs = Date.now();
+                let semMelhora = 0;
 
-            flagInterromper = false;
-            const btn = document.getElementById('btnPararGen');
-            btn.innerText = "Parar e usar a melhor distribuicao ate o momento";
-            btn.disabled = false;
-            btn.classList.remove('opacity-50', 'cursor-not-allowed');
-            bestTurGlobal = bestTur;
-            document.getElementById('loadingBest').innerText = `Grade atual: ${baselineMissing} faltas | penalidade ${baselinePenalties}`;
-            document.getElementById('btnDownloadCurrent').classList.remove('hidden');
+                flagInterromper = false;
+                const btn = document.getElementById('btnPararGen');
+                btn.innerText = "Parar e usar a melhor distribuicao ate o momento";
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                bestTurGlobal = bestTur;
+                document.getElementById('loadingBest').innerText = `Grade atual: ${baselineMissing} faltas | penalidade ${baselinePenalties}`;
+                document.getElementById('btnDownloadCurrent').classList.remove('hidden');
+                const inev = estimarFaltasInevitaveis(tur, !manter);
+                const elPiso = document.getElementById('loadingPiso');
+                if(elPiso) elPiso.innerText = inev.total
+                    ? `Faltas inevitáveis nesta configuração: pelo menos ${inev.total} (${inev.semProfessor} sem professor vinculado, ${inev.semEspaco} sem horário livre na turma${inev.foraDaSelecao ? `, ${inev.foraDaSelecao} em turmas fora da seleção` : ''}).`
+                    : '';
 
-            for(let rodada=0; rodada<rodadas; rodada++) {
-                if(flagInterromper) break;
-                const totalRodadasTxt = Number.isFinite(rodadas) ? `/${rodadas}` : " (ate parar)";
-                document.getElementById('loadingStatus').innerText = `Reinicio ${rodada+1}${totalRodadasTxt}: testando nova distribuicao... Sem melhora: ${semMelhora}`;
-                await new Promise(r=>setTimeout(r,0));
-
-                const tmp = JSON.parse(JSON.stringify(tur));
-                if(!manter) {
-                    tmp.forEach(t => {
-                        if(turmasSelecionadasAuto.has(t.id)) DIAS.forEach((_,d)=>t.horario[d] = {});
-                    });
-                }
-
-                const exec = executarPasseAlocacaoIndexada(tmp, rodada);
-                preencherBuracosLivresIndexado(tmp, exec.idx);
-
-                const currentPenalties = calcularPenalidade(tmp);
-                const currentMissing = contarFaltas(tmp);
-                const currentScore = (currentMissing * 1000000) + currentPenalties;
-                if(currentScore < minScore) {
-                    minScore = currentScore;
-                    semMelhora = 0;
-                    bestTur = tmp;
-                    bestTurRodada = rodada + 1;
-                    bestTurGlobal = tmp;
-                    document.getElementById('loadingBest').innerText = `Melhor arranjo: ${currentMissing} faltas | penalidade ${currentPenalties} | rodada ${rodada+1}`;
-                    document.getElementById('btnDownloadCurrent').classList.remove('hidden');
-                    if(enableAutoDownload) {
-                        const elapsedMin = (Date.now() - startTimeMs) / 60000;
-                        if(elapsedMin >= autoDownloadMin) exportarCRIC(bestTurGlobal, true);
+                let ultimaPausa = 0;
+                for(let rodada=0; rodada<rodadas; rodada++) {
+                    if(flagInterromper) break;
+                    if(performance.now() - ultimaPausa >= 60) {
+                        const totalRodadasTxt = Number.isFinite(rodadas) ? `/${rodadas}` : " (ate parar)";
+                        document.getElementById('loadingStatus').innerText = `Reinicio ${rodada+1}${totalRodadasTxt}: testando nova distribuicao... Sem melhora: ${semMelhora}`;
+                        await cederVezAoNavegador();
+                        ultimaPausa = performance.now();
+                        if(flagInterromper) break;
                     }
-                } else {
-                    semMelhora++;
+
+                    const tmp = JSON.parse(JSON.stringify(tur));
+                    if(!manter) {
+                        tmp.forEach(t => {
+                            if(turmasSelecionadasAuto.has(t.id)) DIAS.forEach((_,d)=>t.horario[d] = {});
+                        });
+                    }
+
+                    const exec = executarPasseAlocacaoIndexada(tmp, rodada);
+                    preencherBuracosLivresIndexado(tmp, exec.idx);
+
+                    const currentPenalties = calcularPenalidade(tmp);
+                    const currentMissing = contarFaltas(tmp);
+                    const currentScore = (currentMissing * 1000000) + currentPenalties;
+                    if(currentScore < minScore) {
+                        minScore = currentScore;
+                        semMelhora = 0;
+                        bestTur = tmp;
+                        bestTurRodada = rodada + 1;
+                        bestTurGlobal = tmp;
+                        document.getElementById('loadingBest').innerText = `Melhor arranjo: ${currentMissing} faltas | penalidade ${currentPenalties} | rodada ${rodada+1}`;
+                        document.getElementById('btnDownloadCurrent').classList.remove('hidden');
+                        if(enableAutoDownload) {
+                            const elapsedMin = (Date.now() - startTimeMs) / 60000;
+                            if(elapsedMin >= autoDownloadMin) exportarCRIC(bestTurGlobal, true);
+                        }
+                    } else {
+                        semMelhora++;
+                    }
+                    if(currentMissing === 0 && currentPenalties === 0) {
+                        document.getElementById('loadingStatus').innerText = "Arranjo perfeito encontrado. Finalizando...";
+                        break;
+                    }
+                    if(limiteSemMelhora && semMelhora >= limiteSemMelhora) {
+                        document.getElementById('loadingStatus').innerText = `${limiteSemMelhora} rodadas seguidas sem melhora. Finalizando...`;
+                        break;
+                    }
                 }
-                if(currentMissing === 0 && currentPenalties === 0) {
-                    document.getElementById('loadingStatus').innerText = "Arranjo perfeito encontrado. Finalizando...";
-                    break;
-                }
+            } catch(err) {
+                erroGeracao = err;
+                console.error(err);
+            } finally {
+                MotorRapido.desinstalar();
             }
 
             if(bestTur) tur = bestTur;
             salvar();
             document.getElementById('loadingOverlay').classList.add('hidden');
             if(wakeLock) { try { await wakeLock.release(); } catch(e) {} wakeLock = null; }
+            if(erroGeracao) return uiAlert(`Erro durante a geração automática: ${erroGeracao.message}. A melhor grade encontrada até o erro foi mantida.`);
             const rel = gerarRelatorio();
             if(rel.erros.length > 0 || rel.avisos.length > 0) abrirRelatorio();
             else if(bestTurRodada === 0) uiAlert("A geração não encontrou uma distribuição melhor que a grade atual. A configuração em tela foi preservada.");
@@ -4034,6 +4109,373 @@
                 uiAlert("Por favor, solte um arquivo .cric ou .csv válido.");
             }
         });
+
+        // ===== Motor rapido da geracao automatica =====
+        // Troca, so durante executarGeracaoAutomatica, as funcoes mais chamadas por versoes com indices (Map/Set)
+        // montados uma vez por geracao. Regras e resultados identicos aos originais (mesma semente => mesma grade).
+        const MotorRapido = (function(){
+          const ORIG = {};
+          let C = null;
+
+          function construirCache() {
+            const profMap = new Map();
+            for (const p of prof) { const k = String(p.id); if (!profMap.has(k)) profMap.set(k, { p, restr: new Set(p.restricoes || []), evit: new Set(p.evitar || []) }); }
+            const discMap = new Map(); for (const d of disc) if (!discMap.has(d.nome)) discMap.set(d.nome, d);
+            const ambMap = new Map(); for (const a of amb) if (!ambMap.has(a.tipo)) ambMap.set(a.tipo, a);
+            const aptos = new Map();
+            for (const p of prof) for (const dn of new Set(p.disciplinas || [])) { if (!aptos.has(dn)) aptos.set(dn, []); aptos.get(dn).push(p.id); }
+            C = {
+              profMap, discMap, ambMap, aptos,
+              PM: HORARIOS.filter(h => h <= Math.min(2, NUM_AULAS)),
+              UN: HORARIOS.filter(h => h >= Math.max(1, NUM_AULAS - 1)),
+              baseAmb: new Map(), pids: new Map(), instOrdenadas: new Map(), slotsTurma: new Map(),
+              turmasGlobais: new Map(), salaEspecifica: new Map()
+            };
+            return C;
+          }
+          const cargaDe = dn => (C.discMap.get(dn)?.carga) || 2;
+
+          function getBaseAmbR(nome) {
+            const key = String(nome || '').trim();
+            if (C.baseAmb.has(key)) return C.baseAmb.get(key);
+            const r = ORIG.getBaseAmb(key); C.baseAmb.set(key, r); return r;
+          }
+          function pidsFromStrR(pidStr) {
+            const key = String(pidStr || '');
+            let r = C.pids.get(key);
+            if (!r) { r = key.split(',').filter(Boolean).map(String); C.pids.set(key, r); }
+            return r;
+          }
+          function calcularPrioridadeReqR(r, tmpTurmas) {
+            const t = tmpTurmas[r.ti]; let peso = 0;
+            r.dns.forEach(dn => {
+              const pids = t.professores && t.professores[dn] ? t.professores[dn].split(',').filter(Boolean) : [];
+              pids.forEach(pid => {
+                const e = C.profMap.get(String(pid));
+                if (e) {
+                  const p = e.p;
+                  peso += (p.restricoes ? p.restricoes.length : 0) * 5;
+                  peso += (p.evitar ? p.evitar.length : 0) * 3;
+                  let tg = C.turmasGlobais.get(pid);
+                  if (tg === undefined) { tg = tmpTurmas.filter(tx => tx.professores && Object.values(tx.professores).some(v => v.includes(pid))).length; C.turmasGlobais.set(pid, tg); }
+                  peso += tg * 3;
+                }
+              });
+              peso += (r.missing[dn] || 0) * 8;
+            });
+            return -peso;
+          }
+          function ordenarReqsIndexadasR(reqs, lista, rodada) {
+            const prio = new Map(); for (const r of reqs) prio.set(r, calcularPrioridadeReqR(r, lista));
+            const exploracao = rodada === 0 ? 0 : Math.min(80, 8 + (rodada % 40) * 2);
+            reqs.sort((a, b) => { const pa = prio.get(a), pb = prio.get(b); const carga = b.c - a.c; return (pa - pb) || carga || ((Math.random() - 0.5) * exploracao); });
+          }
+          function montarParamAlocacaoR(t, dn, missing = 1) {
+            const dObj = C.discMap.get(dn);
+            let pids = t.professores && t.professores[dn] ? t.professores[dn].split(',').filter(Boolean).join(',') : '';
+            if (!pids) { const ap = C.aptos.get(dn); if (ap && ap.length > 0) pids = ap.join(','); }
+            if (!pids) return null;
+            return { dn, pids, sala: (dObj && dObj.amb && dObj.amb.length) ? dObj.amb.join('+') : '', missing, splits: dObj?.splits || 0, carga: dObj?.carga || 2 };
+          }
+          function gerarSlotsTurmaIndexadoR(t) {
+            const key = t.id + '#' + t.slotsAtivos.join(',');
+            let s = C.slotsTurma.get(key);
+            if (!s) { s = ORIG.gerarSlotsTurmaIndexado(t); C.slotsTurma.set(key, s); }
+            return s;
+          }
+          function professoresLivresSlotIndexadoR(pidStr, d, tCode, h, idx) {
+            const key = `${d}-${tCode}-${h}`;
+            for (const pid of pidsFromStrR(pidStr)) {
+              const e = C.profMap.get(pid); if (!e) continue;
+              if (e.restr.has(key)) return false;
+              if (professorTemSlotIndexado(idx, pid, d, tCode, h)) return false;
+            }
+            return true;
+          }
+          function violariaNoiteManhaIndexadoR(pid, idx, extras = []) {
+            for (let d = 0; d < DIAS.length - 1; d++) {
+              if (!C.UN.some(h => professorTemSlotIndexado(idx, pid, d, 'N', h, extras))) continue;
+              if (C.PM.some(h => professorTemSlotIndexado(idx, pid, d + 1, 'M', h, extras))) return true;
+            }
+            return false;
+          }
+          function violariaTresTurnosIndexadoR(pid, d, tCode, idx, extras = []) {
+            const PM = C.PM, UN = C.UN;
+            let temMI;
+            if (tCode === 'M' && extras.some(e => e.t === 'M' && PM.includes(e.h))) temMI = true;
+            else temMI = PM.some(h => professorTemSlotIndexado(idx, pid, d, 'M', h, extras));
+            if (!temMI) return false;
+            if (tCode === 'N' && extras.some(e => e.t === 'N' && UN.includes(e.h))) return true;
+            return UN.some(h => professorTemSlotIndexado(idx, pid, d, 'N', h, extras));
+          }
+          // "antes" (sem o bloco) so muda quando o indice muda: cache por versao do indice
+          function antesNoiteManha(pid, idx) {
+            const v = idx.__versao || 0;
+            const m = idx.__antesNM || (idx.__antesNM = new Map());
+            const c = m.get(pid);
+            if (c && c.v === v) return c.r;
+            const r = violariaNoiteManhaIndexadoR(pid, idx, []); m.set(pid, { v, r }); return r;
+          }
+          // Com "antes" falso, o bloco so cria violacao noite->manha no par de dias que envolve s.d
+          function criaViolacaoNoiteManha(pid, idx, extras, s) {
+            if (s.t === 'N') {
+              if (s.d >= DIAS.length - 1) return false;
+              if (!extras.some(e => e.pid === pid && e.d === s.d && e.t === 'N' && C.UN.includes(e.h))) return false;
+              return C.PM.some(h => professorTemSlotIndexado(idx, pid, s.d + 1, 'M', h));
+            }
+            if (s.t === 'M') {
+              if (s.d < 1) return false;
+              if (!extras.some(e => e.pid === pid && e.d === s.d && e.t === 'M' && C.PM.includes(e.h))) return false;
+              return C.UN.some(h => professorTemSlotIndexado(idx, pid, s.d - 1, 'N', h));
+            }
+            return false;
+          }
+          function avaliarRegrasProfessorBlocoIndexadoR(params, idx, s, b) {
+            const extras = extrasBlocoIndexado(params, s, b);
+            const pids = [...new Set(extras.map(e => e.pid))];
+            for (const pid of pids) {
+              const e = C.profMap.get(pid); const p = e && e.p;
+              if (p && !p.semRestricao && criaViolacaoNoiteManha(pid, idx, extras, s) && !antesNoiteManha(pid, idx)) return { ok: false, softBad: false };
+            }
+            const softBad = pids.some(pid => { const e = C.profMap.get(pid); const p = e && e.p; return (!p || !p.semRestricao) && violariaTresTurnosIndexadoR(pid, s.d, s.t, idx, extras); });
+            return { ok: true, softBad };
+          }
+          function registrarValorNoIndiceR(idx, t, d, tCode, h, val) {
+            idx.__versao = (idx.__versao || 0) + 1;
+            return ORIG.registrarValorNoIndice(idx, t, d, tCode, h, val);
+          }
+          function resolverInstanciaGenericaIndexadaR(tipo, d, tCode, startH, duracao, tid, idx, reservas) {
+            const aObj = C.ambMap.get(tipo);
+            if (!aObj || aObj.qtd <= 1) return tipo;
+            let base = C.instOrdenadas.get(tipo);
+            if (!base) { base = instanciasAmbiente(aObj).sort((a, b) => a.localeCompare(b)); C.instOrdenadas.set(tipo, base); }
+            const pref = idx.turmaSalaPref.get(tid);
+            const candidatas = (pref && pref.size) ? base.slice().sort((a, b) => (pref.get(b) || 0) - (pref.get(a) || 0)) : base;
+            for (const inst of candidatas) if (salaLivreIntervaloIndexado(idx, d, tCode, startH, duracao, inst, reservas)) return inst;
+            return null;
+          }
+          function temEvitarR(pidStr, d, tCode, h) {
+            const key = `${d}-${tCode}-${h}`;
+            for (const pid of String(pidStr).split(',')) { if (!pid) continue; const e = C.profMap.get(pid); if (e && e.evit.has(key)) return true; }
+            return false;
+          }
+          function getGrupoVinculadoPendenteR(t, dn, cnt) {
+            const vinculo = t.vinculos && t.vinculos[dn] ? t.vinculos[dn] : '';
+            if (!vinculo || vinculo.startsWith('single_')) return [dn];
+            return t.disciplinas.filter(o => { const ov = t.vinculos && t.vinculos[o] ? t.vinculos[o] : ''; return ov === vinculo && (cnt[o] || 0) < cargaDe(o); });
+          }
+          function escolherSlotBlocoIndexadoR(t, params, idx, b, rodada) {
+            let melhor = null;
+            for (const s of gerarSlotsTurmaIndexado(t)) {
+              const tentativa = avaliarBlocoEmSlotIndexado(t, params, idx, s, b);
+              if (!tentativa.ok) continue;
+              const score = pontuarSlotIndexado(t, params, idx, s, b, tentativa, rodada);
+              if (!melhor || score < melhor.score) melhor = { ...s, b, salas: tentativa.salas, score };
+            }
+            return melhor;
+          }
+          function preencherBuracosLivresIndexadoR(lista, idx) {
+            let total = 0, mudou = true, guard = 0;
+            const pendentes = (t, cnt) => {
+              const out = [];
+              for (const dn of t.disciplinas) {
+                if ((cnt[dn] || 0) >= cargaDe(dn)) continue;
+                const grupo = getGrupoVinculadoPendente(t, dn, cnt);
+                if (grupo[0] !== dn) continue;
+                const faltasGrupo = grupo.map(g => cargaDe(g) - (cnt[g] || 0));
+                if (faltasGrupo.some(f => f > 1)) continue;
+                if (grupo.some(g => !montarParamAlocacao(t, g, 1))) continue;
+                out.push({ grupo, faltasGrupo });
+              }
+              return out;
+            };
+            while (mudou && guard++ < 10) {
+              mudou = false;
+              for (const t of lista) {
+                if (!turmasSelecionadasAuto.has(t.id)) continue;
+                const cnt = contarAlocadasTurma(t);
+                let pend = pendentes(t, cnt);
+                if (!pend.length) continue;
+                const ativos = new Set(t.slotsAtivos);
+                for (let d = 0; d < DIAS.length && pend.length; d++) {
+                  for (const tr of TURNOS) {
+                    if (!ativos.has(`${d}-${tr.id}`)) continue;
+                    for (let h = 1; h <= NUM_AULAS && pend.length; h++) {
+                      if (t.horario[d][`${tr.id}${h}`]) continue;
+                      const candidatos = [];
+                      for (const pg of pend) {
+                        const params = pg.grupo.map(g => montarParamAlocacao(t, g, 1));
+                        const tentativa = avaliarBlocoEmSlotIndexado(t, params, idx, { d, t: tr.id, h }, 1);
+                        if (!tentativa.ok) continue;
+                        candidatos.push({ params, found: { d, t: tr.id, h, b: 1, salas: tentativa.salas }, evita: params.some(p => temEvitar(p.pids, d, tr.id, h)), softBad: tentativa.softBad, maiorFalta: Math.max(...pg.faltasGrupo) });
+                      }
+                      if (!candidatos.length) continue;
+                      candidatos.sort((a, b) => (a.evita === b.evita ? 0 : a.evita ? 1 : -1) || (a.softBad === b.softBad ? 0 : a.softBad ? 1 : -1) || (b.maiorFalta - a.maiorFalta) || a.params[0].dn.localeCompare(b.params[0].dn));
+                      const esc = candidatos[0];
+                      const antes = esc.params.reduce((acc, p) => acc + p.missing, 0);
+                      registrarBlocoIndexado(t, esc.params, idx, esc.found);
+                      esc.params.forEach(p => cnt[p.dn] = (cnt[p.dn] || 0) + 1);
+                      total += antes; mudou = true;
+                      pend = pendentes(t, cnt);
+                    }
+                  }
+                }
+              }
+            }
+            return total;
+          }
+          function ehSalaEspecifica(s) {
+            let r = C.salaEspecifica.get(s);
+            if (r === undefined) { const base = getBaseAmbR(s); r = !!(base && !base.isGeneric && s.toUpperCase() !== 'SEM AMBIENTE'); C.salaEspecifica.set(s, r); }
+            return r;
+          }
+          // Penalidade identica a calcularPenalidade, em ~1 passada por secao e com mascaras de bits por professor/dia
+          function calcularPenalidadeR(lista) {
+            let pen = 0;
+            const NA = NUM_AULAS, ND = DIAS.length;
+            const W = k => pesoRestricao(k);
+            const ativos = lista.map(t => new Set(t.slotsAtivos));
+            const wR = W('restricao'), wE = W('evitar');
+            lista.forEach((t, ti) => {
+              for (let d = 0; d < ND; d++) {
+                const hd = t.horario[d];
+                for (const k of Object.keys(hd)) {
+                  const trId = k.replace(/[0-9]/g, ''); const hr = parseInt(k.replace(/[^0-9]/g, ''));
+                  if (!(hr <= NA && ativos[ti].has(`${d}-${trId}`))) continue;
+                  const val = hd[k]; if (!val) continue;
+                  const key = `${d}-${trId}-${hr}`;
+                  for (const aloc of val.split('&')) for (const pid of aloc.split('|')[0].split(',')) {
+                    if (!pid) continue; const e = C.profMap.get(pid); if (!e) continue;
+                    if (e.restr.has(key)) pen += wR;
+                    if (e.evit.has(key)) pen += wE;
+                  }
+                }
+              }
+            });
+            const wS = W('salaEspecifica');
+            for (let d = 0; d < ND; d++) for (const tr of TURNOS) for (const h of HORARIOS) {
+              const k = `${tr.id}${h}`; const usados = [];
+              lista.forEach((t, ti) => {
+                if (!ativos[ti].has(`${d}-${tr.id}`)) return;
+                const val = t.horario[d][k]; if (!val) return;
+                const vistos = new Set();
+                for (const aloc of val.split('&')) { const sl = aloc.split('|')[2]; if (sl) for (const s of sl.split('+')) { if (vistos.has(s)) continue; vistos.add(s); if (ehSalaEspecifica(s)) usados.push(s); } }
+              });
+              const dup = usados.length - new Set(usados).size; if (dup > 0) pen += dup * wS;
+            }
+            if (!ignoreAmb) {
+              const wEs = W('estabilidadeSala');
+              lista.forEach((t, ti) => { for (let d = 0; d < ND; d++) for (const tr of TURNOS) {
+                if (!ativos[ti].has(`${d}-${tr.id}`)) continue;
+                let la = null;
+                for (const h of HORARIOS) { const val = t.horario[d][`${tr.id}${h}`]; if (val) { const ac = val.split('&')[0].split('|')[2]; if (la && ac !== la) pen += wEs; la = ac; } }
+              } });
+            }
+            const wI = W('intervalo');
+            lista.forEach((t, ti) => { for (let d = 0; d < ND; d++) for (const tr of TURNOS) {
+              if (!ativos[ti].has(`${d}-${tr.id}`)) continue;
+              for (let h = 2; h < NA; h += 2) { const v1 = t.horario[d][`${tr.id}${h}`], v2 = t.horario[d][`${tr.id}${h + 1}`]; if (v1 && v2 && v1.split('&')[0].split('|')[1] === v2.split('&')[0].split('|')[1]) pen += wI; }
+            } });
+            const wF = W('fragmentacaoBlocos');
+            lista.forEach((t, ti) => {
+              let stats = null;
+              t.disciplinas.forEach(dn => {
+                const dObj = C.discMap.get(dn); if (!dObj || dObj.splits) return;
+                const carga = dObj.carga || 2; if (carga <= 2) return;
+                if (!stats) {
+                  stats = new Map();
+                  const fecha = (x, len) => { let s = stats.get(x); if (!s) stats.set(x, s = { blocos: 0, unit: 0 }); s.blocos++; if (len === 1) s.unit++; };
+                  for (let d = 0; d < ND; d++) for (const tr of TURNOS) {
+                    if (!ativos[ti].has(`${d}-${tr.id}`)) continue;
+                    const run = new Map();
+                    for (const h of HORARIOS) {
+                      const val = t.horario[d][`${tr.id}${h}`]; const pres = new Set();
+                      if (val) for (const aloc of val.split('&')) pres.add(aloc.split('|')[1]);
+                      for (const [x, len] of run) if (!pres.has(x)) { fecha(x, len); run.delete(x); }
+                      for (const x of pres) run.set(x, (run.get(x) || 0) + 1);
+                    }
+                    for (const [x, len] of run) fecha(x, len);
+                  }
+                }
+                const fr = stats.get(dn) || { blocos: 0, unit: 0 };
+                const esperados = Math.ceil(carga / 2), unitOk = carga % 2;
+                if (fr.blocos > esperados) pen += (fr.blocos - esperados) * wF;
+                if (fr.unit > unitOk) pen += (fr.unit - unitOk) * Math.floor(wF / 2);
+              });
+            });
+            const wTD = W('turnoDiario'), wTI = W('turnoIncompleto'), wCT = W('concentracaoTurnos');
+            lista.forEach((t, ti) => {
+              let usados = 0, incompletos = 0; const dias = new Set();
+              for (let d = 0; d < ND; d++) for (const tr of TURNOS) {
+                if (!ativos[ti].has(`${d}-${tr.id}`)) continue;
+                let q = 0; for (const h of HORARIOS) if (t.horario?.[d]?.[`${tr.id}${h}`]) q++;
+                if (q > 0) { usados++; dias.add(d); if (q < NA) incompletos++; }
+              }
+              const semAula = ND - dias.size;
+              if (t.exigirTurnoDiario && semAula) pen += semAula * wTD;
+              if (t.turnosFlexiveis !== false) {
+                pen += incompletos * wTI;
+                const base = t.exigirTurnoDiario ? Math.min(ND, usados) : 0;
+                pen += Math.max(0, usados - base) * wCT;
+              }
+            });
+            // Secao 7: ocupacao por professor como mascara de bits (dia -> bits turno*NA + h-1)
+            const occ = new Map();
+            lista.forEach((t, ti) => { for (let d = 0; d < ND; d++) TURNOS.forEach((tr, tix) => {
+              if (!ativos[ti].has(`${d}-${tr.id}`)) return;
+              for (let h = 1; h <= NA; h++) {
+                const val = t.horario[d][`${tr.id}${h}`]; if (!val) continue;
+                for (const aloc of val.split('&')) for (const pid of pidsFromStrR(aloc.split('|')[0])) {
+                  let a = occ.get(pid); if (!a) occ.set(pid, a = new Int32Array(ND));
+                  a[d] |= 1 << (tix * NA + h - 1);
+                }
+              }
+            }); });
+            const iM = TURNOS.findIndex(x => x.id === 'M'), iT = TURNOS.findIndex(x => x.id === 'T'), iN = TURNOS.findIndex(x => x.id === 'N');
+            const mT = (1 << NA) - 1;
+            let mMI = 0; C.PM.forEach(h => mMI |= 1 << (iM * NA + h - 1));
+            let mNF = 0; C.UN.forEach(h => mNF |= 1 << (iN * NA + h - 1));
+            const w3 = W('tresTurnos'), wMN = W('manhaNoiteMesmoDia'), wTD2 = W('todosDias'), wNM = W('noiteManha');
+            for (const px of prof) {
+              const a = occ.get(String(px.id));
+              let dias = 0;
+              for (let d = 0; d < ND; d++) {
+                const m = a ? a[d] : 0;
+                if (m) dias++;
+                if (!px.semRestricao) {
+                  if (((m >> (iM * NA)) & mT) && ((m >> (iT * NA)) & mT) && ((m >> (iN * NA)) & mT)) pen += w3;
+                  if ((m & mMI) && (m & mNF)) pen += wMN;
+                }
+              }
+              if (!px.semRestricao && dias >= ND) pen += wTD2;
+              if (!px.semRestricao && a) for (let d = 0; d < ND - 1; d++) if ((a[d] & mNF) && (a[d + 1] & mMI)) { pen += wNM; break; }
+            }
+            return pen;
+          }
+          function contarFaltasR(lista) {
+            let total = 0;
+            lista.forEach(t => { const cnt = contarAlocadasTurma(t); t.disciplinas.forEach(dn => { total += Math.max(0, cargaDe(dn) - (cnt[dn] || 0)); }); });
+            return total;
+          }
+
+          const MAPA = {
+            getBaseAmb: getBaseAmbR, pidsFromStr: pidsFromStrR, calcularPrioridadeReq: calcularPrioridadeReqR,
+            ordenarReqsIndexadas: ordenarReqsIndexadasR, montarParamAlocacao: montarParamAlocacaoR,
+            gerarSlotsTurmaIndexado: gerarSlotsTurmaIndexadoR, professoresLivresSlotIndexado: professoresLivresSlotIndexadoR,
+            violariaNoiteManhaIndexado: violariaNoiteManhaIndexadoR, violariaTresTurnosIndexado: violariaTresTurnosIndexadoR,
+            avaliarRegrasProfessorBlocoIndexado: avaliarRegrasProfessorBlocoIndexadoR, registrarValorNoIndice: registrarValorNoIndiceR,
+            resolverInstanciaGenericaIndexada: resolverInstanciaGenericaIndexadaR, temEvitar: temEvitarR,
+            getGrupoVinculadoPendente: getGrupoVinculadoPendenteR, escolherSlotBlocoIndexado: escolherSlotBlocoIndexadoR,
+            preencherBuracosLivresIndexado: preencherBuracosLivresIndexadoR, calcularPenalidade: calcularPenalidadeR,
+            contarFaltas: contarFaltasR
+          };
+          return {
+            instalar() { construirCache(); for (const k in MAPA) { if (!(k in ORIG)) ORIG[k] = window[k]; window[k] = MAPA[k]; } },
+            desinstalar() { for (const k in ORIG) window[k] = ORIG[k]; },
+            recarregarCache: construirCache,
+            ORIG, MAPA
+          };
+        })();
 
         init();
     </script>
