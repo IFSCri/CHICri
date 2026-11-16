@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CHICri - Cálculo de Horários IFSC Criciúma v2.0</title>
+    <title>CHICri - Cálculo de Horários IFSC Criciúma v2.1</title>
 	<link rel="icon" href="https://i.ibb.co/qFgNh0LT/CHICri.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -821,6 +821,132 @@
             }));
             const diasSemAula = DIAS.map((_, d) => d).filter(d => !diasComAula.has(d));
             return { turnosUsados, turnosIncompletos, diasComAula, diasSemAula };
+        }
+
+        // A carga de uma turma e medida em celulas da grade. Disciplinas vinculadas
+        // ocupam a mesma celula, por isso o grupo contribui apenas com a maior carga.
+        function cargaPlanejadaTurma(t) {
+            const cargasPorGrupo = new Map();
+            (t.disciplinas || []).forEach(dn => {
+                const carga = disc.find(x => x.nome === dn)?.carga || 2;
+                const vinculo = t.vinculos && t.vinculos[dn] ? t.vinculos[dn] : '';
+                const grupo = vinculo && !vinculo.startsWith('single_') ? `v:${vinculo}` : `d:${dn}`;
+                cargasPorGrupo.set(grupo, Math.max(cargasPorGrupo.get(grupo) || 0, carga));
+            });
+            return [...cargasPorGrupo.values()].reduce((total, carga) => total + carga, 0);
+        }
+
+        // Mede apenas os turnos parciais que nao sao justificados pelo resto da carga.
+        // Esse valor e uma prioridade da busca: e preferivel deixar aulas no limbo a
+        // abrir um turno parcial adicional quando a carga fecha em turnos completos.
+        function desvioEstruturalTurnosTurma(t) {
+            const uso = analisarUsoTurnosTurma(t);
+            const restoPermitido = cargaPlanejadaTurma(t) % NUM_AULAS;
+            const parciaisPermitidos = restoPermitido ? 1 : 0;
+            const excessoDeTurnos = Math.max(0, uso.turnosIncompletos.length - parciaisPermitidos);
+            const aulasParciais = uso.turnosIncompletos.reduce((total, turno) => total + turno.aulas, 0);
+            const excessoDeAulas = Math.max(0, aulasParciais - restoPermitido);
+            return excessoDeTurnos * (NUM_AULAS + 1) + excessoDeAulas;
+        }
+
+        function desvioEstruturalTurnos(lista) {
+            return lista.reduce((total, t) => total + desvioEstruturalTurnosTurma(t), 0);
+        }
+
+        function apagarAulasDoTurno(t, d, tCode, manter = 0, protegidas = new Set()) {
+            const chaves = HORARIOS
+                .map(h => ({ h, chave: `${tCode}${h}` }))
+                .filter(item => t.horario?.[d]?.[item.chave]);
+            let aulasMantidas = 0;
+            chaves.forEach(item => {
+                if(protegidas.has(item.chave) || aulasMantidas < manter) {
+                    aulasMantidas++;
+                    return;
+                }
+                delete t.horario[d][item.chave];
+            });
+        }
+
+        function parametrosDaCelula(val) {
+            return String(val || '').split('&').filter(Boolean).map(alocacao => {
+                const [pids, dn, sala] = alocacao.split('|');
+                const dObj = disc.find(x => x.nome === dn);
+                return { dn, pids, sala: sala || '', missing: 1, splits: dObj?.splits || 0, carga: dObj?.carga || 2 };
+            });
+        }
+
+        // Antes de devolver aulas ao limbo, tenta agrupar as celulas de turnos
+        // parciais em um deles. A movimentacao passa pelas mesmas validacoes de
+        // professor e ambiente da geracao, portanto nao cria choques para fechar
+        // artificialmente um turno.
+        function consolidarTurnosIncompletos(t, lista) {
+            let mudou = true;
+            let tentativas = 0;
+            while(mudou && tentativas++ < NUM_AULAS * 20) {
+                mudou = false;
+                const parciais = analisarUsoTurnosTurma(t).turnosIncompletos;
+                const alvos = [...parciais].sort((a, b) => b.aulas - a.aulas);
+
+                tentativaDeMovimento:
+                for(const alvo of alvos) {
+                    for(const fonte of parciais) {
+                        if(fonte === alvo) continue;
+                        const chavesFonte = HORARIOS.map(h => `${fonte.t}${h}`).filter(chave => t.horario[fonte.d][chave]);
+                        for(const chaveFonte of chavesFonte) {
+                            const val = t.horario[fonte.d][chaveFonte];
+                            const params = parametrosDaCelula(val);
+                            if(!params.length) continue;
+                            for(const h of HORARIOS) {
+                                const chaveAlvo = `${alvo.t}${h}`;
+                                if(t.horario[alvo.d][chaveAlvo]) continue;
+
+                                delete t.horario[fonte.d][chaveFonte];
+                                const idx = criarIndiceOcupacao(lista);
+                                const slot = { d: alvo.d, t: alvo.t, h };
+                                const tentativa = avaliarBlocoEmSlotIndexado(t, params, idx, slot, 1);
+                                if(!tentativa.ok) {
+                                    t.horario[fonte.d][chaveFonte] = val;
+                                    continue;
+                                }
+                                registrarBlocoIndexado(t, params, idx, { ...slot, b: 1, salas: tentativa.salas });
+                                mudou = true;
+                                break tentativaDeMovimento;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Mantem somente o turno parcial indispensavel pelo resto da carga. A regra
+        // e aplicada depois de cada rodada, antes de comparar os resultados: assim,
+        // em cargas multiplas de NUM_AULAS, qualquer aula que nao consiga completar
+        // um turno retorna ao limbo em vez de criar mais um turno incompleto.
+        function compactarTurnosIncompletos(lista, gradePreservada = null) {
+            const basesPorTurma = new Map((gradePreservada || []).map(t => [t.id, t]));
+            lista.forEach(t => {
+                if(!turmasSelecionadasAuto.has(t.id)) return;
+                consolidarTurnosIncompletos(t, lista);
+                const uso = analisarUsoTurnosTurma(t);
+                const restoPermitido = cargaPlanejadaTurma(t) % NUM_AULAS;
+                const base = basesPorTurma.get(t.id);
+                const turnosProtegidos = uso.turnosIncompletos.filter(turno =>
+                    HORARIOS.some(h => base?.horario?.[turno.d]?.[`${turno.t}${h}`])
+                );
+                let manter = null;
+
+                if(restoPermitido && turnosProtegidos.length === 0 && uso.turnosIncompletos.length) {
+                    manter = uso.turnosIncompletos.filter(turno => !turnosProtegidos.includes(turno)).sort((a, b) =>
+                        (Math.min(restoPermitido, b.aulas) - Math.min(restoPermitido, a.aulas)) ||
+                        (b.aulas - a.aulas)
+                    )[0];
+                }
+
+                uso.turnosIncompletos.forEach(turno => {
+                    if(turno !== manter && !turnosProtegidos.includes(turno)) apagarAulasDoTurno(t, turno.d, turno.t);
+                });
+                if(manter) apagarAulasDoTurno(t, manter.d, manter.t, restoPermitido);
+            });
         }
 
         function validarTurnoDiarioPossivel(slotsAtivos, exigir) {
@@ -3053,18 +3179,27 @@
             return r;
         }
 
-        // Comparacao lexicografica: primeiro menos faltas, depois menor penalidade. A antiga soma
-        // (faltas x 1.000.000 + penalidade) deixava uma grade com mais faltas vencer quando a penalidade passava de 1 milhao.
-        function ehMelhorResultado(faltas, penalidade, melhorFaltas, melhorPenalidade) {
-            return faltas < melhorFaltas || (faltas === melhorFaltas && penalidade < melhorPenalidade);
+        // Comparacao lexicografica: primeiro a estrutura dos turnos, depois as faltas
+        // e por fim as demais preferencias. Com isso, aulas que nao fecham um turno
+        // ficam no limbo antes que a busca aceite mais de um turno incompleto.
+        function ehMelhorResultado(estrutura, faltas, penalidade, melhorEstrutura, melhorFaltas, melhorPenalidade) {
+            return estrutura < melhorEstrutura ||
+                (estrutura === melhorEstrutura && (faltas < melhorFaltas ||
+                    (faltas === melhorFaltas && penalidade < melhorPenalidade)));
         }
 
         // Uma rodada completa sobre uma copia da grade base (texto JSON). E a mesma na pagina e nos workers.
-        function executarRodadaGeracao(baseJson, rodada) {
+        function executarRodadaGeracao(baseJson, rodada, preservarExistentes = false) {
             const tmp = JSON.parse(baseJson);
             const exec = executarPasseAlocacaoIndexada(tmp, rodada);
             preencherBuracosLivresIndexado(tmp, exec.idx);
-            return { grade: tmp, faltas: contarFaltas(tmp), penalidade: calcularPenalidade(tmp) };
+            compactarTurnosIncompletos(tmp, preservarExistentes ? JSON.parse(baseJson) : null);
+            return {
+                grade: tmp,
+                estrutura: desvioEstruturalTurnos(tmp),
+                faltas: contarFaltas(tmp),
+                penalidade: calcularPenalidade(tmp)
+            };
         }
 
         // Rodadas sem melhora toleradas depois que todas as aulas possiveis ja foram alocadas.
@@ -3076,7 +3211,9 @@
             'pesoRestricao', 'getBaseAmb', 'instanciasAmbienteFisicas', 'tokensAmbiente', 'ambienteEhGrupo',
             'salaOcupadaConcreta', 'preferenciasAmbienteTurma', 'escolherInstanciaGrupo', 'resolverAmbientesParaAlocacao',
             'chaveTurnoTurma', 'todosTurnosTurmaIds', 'turnosBloqueadosSet', 'turnosAlocaveisTurma', 'normalizarTurnosTurma',
-            'contarAulasNoTurnoTurma', 'analisarUsoTurnosTurma', 'pidsFromStr', 'extrasContemPid', 'professorTemAulaHorario',
+            'contarAulasNoTurnoTurma', 'analisarUsoTurnosTurma', 'cargaPlanejadaTurma', 'desvioEstruturalTurnosTurma',
+            'desvioEstruturalTurnos', 'apagarAulasDoTurno', 'parametrosDaCelula', 'consolidarTurnosIncompletos',
+            'compactarTurnosIncompletos', 'pidsFromStr', 'extrasContemPid', 'professorTemAulaHorario',
             'professorTemAulaTurno', 'violariaNoiteManha', 'contarBlocosDisciplinaTurma', 'calcularPenalidade', 'temEvitar',
             'contarAlocadasTurma', 'contarFaltas', 'montarParamAlocacao', 'getGrupoVinculadoPendente', 'calcularPrioridadeReq',
             'gerarPlanosBlocos', 'chaveSlotIndexado', 'obterSetIndexado', 'obterMapIndexado', 'instanciasAmbiente',
@@ -3101,14 +3238,14 @@
                     ignoreAmb = m.ignoreAmb; pesosRestricoes = m.pesos;
                     turmasSelecionadasAuto = new Set(m.selecionadas);
                     MotorRapido.instalar();
-                    let melhorFaltas = m.melhorFaltas, melhorPenalidade = m.melhorPenalidade;
+                    let melhorEstrutura = m.melhorEstrutura, melhorFaltas = m.melhorFaltas, melhorPenalidade = m.melhorPenalidade;
                     let feitas = 0, ultimoAviso = performance.now();
                     for(let rodada = m.primeira; rodada < m.limite; rodada += m.passo) {
-                        const r = executarRodadaGeracao(m.baseJson, rodada);
+                        const r = executarRodadaGeracao(m.baseJson, rodada, m.preservarExistentes);
                         feitas++;
-                        if(ehMelhorResultado(r.faltas, r.penalidade, melhorFaltas, melhorPenalidade)) {
-                            melhorFaltas = r.faltas; melhorPenalidade = r.penalidade;
-                            self.postMessage({ tipo: 'melhor', feitas, rodada, faltas: r.faltas, penalidade: r.penalidade, grade: r.grade });
+                        if(ehMelhorResultado(r.estrutura, r.faltas, r.penalidade, melhorEstrutura, melhorFaltas, melhorPenalidade)) {
+                            melhorEstrutura = r.estrutura; melhorFaltas = r.faltas; melhorPenalidade = r.penalidade;
+                            self.postMessage({ tipo: 'melhor', feitas, rodada, estrutura: r.estrutura, faltas: r.faltas, penalidade: r.penalidade, grade: r.grade });
                             feitas = 0; ultimoAviso = performance.now();
                         } else if(performance.now() - ultimoAviso >= 250) {
                             self.postMessage({ tipo: 'progresso', feitas, rodada });
@@ -3170,7 +3307,7 @@
                             const m = ev.data;
                             if(m.tipo === 'erro') return falhar(m.mensagem);
                             if(m.feitas) { algumaRodada = true; cfg.aoProgresso(m.feitas); }
-                            if(m.tipo === 'melhor') cfg.aoResultado(m.faltas, m.penalidade, m.rodada, m.grade);
+                            if(m.tipo === 'melhor') cfg.aoResultado(m.estrutura, m.faltas, m.penalidade, m.rodada, m.grade);
                             if(m.tipo === 'fim' && --ativos === 0) return encerrar();
                             if(cfg.deveParar()) encerrar();
                         };
@@ -3197,9 +3334,9 @@
                     ultimaPausa = performance.now();
                     if(cfg.deveParar()) break;
                 }
-                const r = executarRodadaGeracao(cfg.dados.baseJson, rodada);
+                const r = executarRodadaGeracao(cfg.dados.baseJson, rodada, cfg.dados.preservarExistentes);
                 cfg.aoProgresso(1);
-                cfg.aoResultado(r.faltas, r.penalidade, rodada, r.grade);
+                cfg.aoResultado(r.estrutura, r.faltas, r.penalidade, rodada, r.grade);
             }
         }
 
@@ -3221,12 +3358,13 @@
             }
 
             const inicio = Date.now();
-            const busca = { faltas: Infinity, penalidade: Infinity, grade: null, rodada: 0, feitas: 0, semMelhora: 0, workers: 0 };
+            const busca = { estrutura: Infinity, faltas: Infinity, penalidade: Infinity, grade: null, rodada: 0, feitas: 0, semMelhora: 0, workers: 0 };
             let erroGeracao = null, erroWorker = null, motivoParada = '';
             // Motor rapido: mesmas regras e mesmos resultados, com indices montados uma vez por geracao.
             MotorRapido.instalar();
             try {
                 const baselineTur = JSON.parse(JSON.stringify(tur));
+                busca.estrutura = desvioEstruturalTurnos(baselineTur);
                 busca.faltas = contarFaltas(baselineTur);
                 busca.penalidade = calcularPenalidade(baselineTur);
                 busca.grade = baselineTur;
@@ -3247,7 +3385,7 @@
                 btn.innerText = "Parar e usar a melhor distribuicao ate o momento";
                 btn.disabled = false;
                 btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                document.getElementById('loadingBest').innerText = `Grade atual: ${busca.faltas} faltas | penalidade ${busca.penalidade}`;
+                document.getElementById('loadingBest').innerText = `Grade atual: ${busca.faltas} faltas | ${busca.estrutura} desvios de turno | penalidade ${busca.penalidade}`;
                 document.getElementById('btnDownloadCurrent').classList.remove('hidden');
                 const inev = estimarFaltasInevitaveis(tur, !manter);
                 const elPiso = document.getElementById('loadingPiso');
@@ -3272,16 +3410,16 @@
                     qtdWorkers: Math.max(1, Math.min(6, (navigator.hardwareConcurrency || 2) - 1)),
                     dados: {
                         amb, disc, prof, tur, numAulas: NUM_AULAS, ignoreAmb, pesos: pesosRestricoes,
-                        selecionadas: [...turmasSelecionadasAuto], baseJson: JSON.stringify(base), limite: rodadas,
-                        melhorFaltas: busca.faltas, melhorPenalidade: busca.penalidade
+                        selecionadas: [...turmasSelecionadasAuto], baseJson: JSON.stringify(base), preservarExistentes: !!manter, limite: rodadas,
+                        melhorEstrutura: busca.estrutura, melhorFaltas: busca.faltas, melhorPenalidade: busca.penalidade
                     },
                     aoProgresso: n => { busca.feitas += n; busca.semMelhora += n; atualizarStatus(false); },
-                    aoResultado: (faltas, penalidade, rodada, grade) => {
-                        if(!ehMelhorResultado(faltas, penalidade, busca.faltas, busca.penalidade)) return;
-                        busca.faltas = faltas; busca.penalidade = penalidade; busca.grade = grade;
+                    aoResultado: (estrutura, faltas, penalidade, rodada, grade) => {
+                        if(!ehMelhorResultado(estrutura, faltas, penalidade, busca.estrutura, busca.faltas, busca.penalidade)) return;
+                        busca.estrutura = estrutura; busca.faltas = faltas; busca.penalidade = penalidade; busca.grade = grade;
                         busca.rodada = rodada + 1; busca.semMelhora = 0;
                         bestTurGlobal = grade;
-                        document.getElementById('loadingBest').innerText = `Melhor arranjo: ${faltas} faltas | penalidade ${penalidade} | rodada ${rodada+1}`;
+                        document.getElementById('loadingBest').innerText = `Melhor arranjo: ${faltas} faltas | ${estrutura} desvios de turno | penalidade ${penalidade} | rodada ${rodada+1}`;
                         document.getElementById('btnDownloadCurrent').classList.remove('hidden');
                         if(enableAutoDownload && (Date.now() - inicio) / 60000 >= autoDownloadMin) exportarCRIC(bestTurGlobal, true);
                     },
