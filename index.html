@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CHICri - Cálculo de Horários IFSC Criciúma v2.1</title>
+    <title>CHICri - Cálculo de Horários IFSC Criciúma v2.0</title>
 	<link rel="icon" href="https://i.ibb.co/qFgNh0LT/CHICri.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -21,6 +21,23 @@
         
         #loadingOverlay { backdrop-filter: blur(2px); }
         .env-select { -webkit-appearance: none; -moz-appearance: none; text-indent: 1px; text-overflow: ''; }
+        .drop-possible { background-color: #dcfce7 !important; outline: 2px solid #16a34a; outline-offset: -2px; }
+        .drop-warning { background-color: #fef3c7 !important; outline: 2px solid #d97706; outline-offset: -2px; }
+        .drop-blocked { background-color: #fee2e2 !important; outline: 2px solid #dc2626; outline-offset: -2px; }
+        .drop-success { background-color: #dcfce7 !important; transition: background-color 0.2s; }
+
+        @media (min-width: 1024px) {
+            .painel-config,
+            .painel-horarios {
+                height: calc(100vh - 5.25rem) !important;
+                max-height: calc(100vh - 5.25rem) !important;
+                min-height: 0;
+                overflow-y: auto !important;
+                overscroll-behavior: contain;
+                scrollbar-gutter: stable;
+            }
+            .painel-horarios { padding-right: 0.5rem; }
+        }
         
         #printArea { display: none; }
         body.modo-tela-extra nav { display: none !important; }
@@ -160,10 +177,11 @@
     </nav>
 
     <div id="printArea"></div>
+    <div id="dragFeedback" role="status" aria-live="polite" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] rounded px-4 py-2 text-xs font-bold text-white shadow-lg"></div>
 
     <div class="container mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
 
-        <div class="painel-config lg:col-span-4 space-y-6 max-h-[90vh] overflow-visible pr-2">
+        <div class="painel-config lg:col-span-4 space-y-6 pr-2 min-h-0">
             
             <div class="bg-white p-4 rounded-lg shadow border-l-4 border-yellow-500">
                 <div class="flex justify-between items-center mb-2">
@@ -286,7 +304,7 @@
             </div>
         </div>
 
-        <div class="painel-horarios lg:col-span-8">
+        <div class="painel-horarios lg:col-span-8 min-h-0">
             <!-- Abas de Navegação -->
             <div class="flex border-b border-gray-300 mb-4 bg-white rounded-t shadow-sm">
                 <button id="tabBtnTurmas" onclick="mudarAba('turmas')" class="py-2 px-4 border-b-2 border-purple-600 font-bold text-purple-700 flex-1 hover:bg-gray-50 transition"><i class="fas fa-users mr-2"></i> Turmas</button>
@@ -836,6 +854,58 @@
             return [...cargasPorGrupo.values()].reduce((total, carga) => total + carga, 0);
         }
 
+        // A exigência explícita continua valendo. Para turmas de carga alta, com
+        // mais de um turno disponível e todos os dias liberados, a presença diária
+        // passa a ser uma regra automática da geração.
+        function exigePresencaDiariaNaGeracao(t) {
+            if(t.exigirTurnoDiario) return true;
+            const slots = Array.isArray(t.slotsAtivos) ? t.slotsAtivos : [];
+            const turnos = new Set(slots.map(slot => String(slot).split('-')[1]));
+            const diasLiberados = new Set(slots.map(slot => Number(String(slot).split('-')[0])));
+            return cargaPlanejadaTurma(t) > NUM_AULAS * DIAS.length &&
+                turnos.size > 1 && DIAS.every((_, d) => diasLiberados.has(d));
+        }
+
+        function diaTemAulaForaDoTurno(t, d, turnoIgnorado) {
+            return TURNOS.some(tr => tr.id !== turnoIgnorado && contarAulasNoTurnoTurma(t, d, tr.id) > 0);
+        }
+
+        function diaFicariaSemAulaAoRemover(t, d, tCode, chaveIgnorada) {
+            return !TURNOS.some(tr => HORARIOS.some(h => {
+                const chave = `${tr.id}${h}`;
+                return !(tr.id === tCode && chave === chaveIgnorada) && !!t.horario?.[d]?.[chave];
+            }));
+        }
+
+        function usoSemanalDisciplinaTurma(t, dn) {
+            const dias = new Set();
+            let aulas = 0;
+            const slotsAtivos = Array.isArray(t.slotsAtivos) ? t.slotsAtivos : [];
+            DIAS.forEach((_, d) => TURNOS.forEach(tr => {
+                if(!slotsAtivos.includes(`${d}-${tr.id}`)) return;
+                HORARIOS.forEach(h => {
+                    const val = t.horario?.[d]?.[`${tr.id}${h}`];
+                    if(val && val.split('&').some(aloc => aloc.split('|')[1] === dn)) {
+                        aulas++;
+                        dias.add(d);
+                    }
+                });
+            }));
+            return { aulas, dias };
+        }
+
+        function blocosDesejadosDisciplina(dObj) {
+            if(!dObj) return 1;
+            if((dObj.splits || 0) > 1) return dObj.splits;
+            return (dObj.carga || 2) > NUM_AULAS ? Math.ceil((dObj.carga || 2) / 2) : 1;
+        }
+
+        function desvioDistribuicaoSemanalDisciplina(t, dn, dObj = disc.find(x => x.nome === dn)) {
+            const uso = usoSemanalDisciplinaTurma(t, dn);
+            const diasDesejados = Math.min(DIAS.length, blocosDesejadosDisciplina(dObj), Math.ceil(uso.aulas / 2));
+            return Math.max(0, diasDesejados - uso.dias.size);
+        }
+
         // Mede apenas os turnos parciais que nao sao justificados pelo resto da carga.
         // Esse valor e uma prioridade da busca: e preferivel deixar aulas no limbo a
         // abrir um turno parcial adicional quando a carga fecha em turnos completos.
@@ -846,7 +916,8 @@
             const excessoDeTurnos = Math.max(0, uso.turnosIncompletos.length - parciaisPermitidos);
             const aulasParciais = uso.turnosIncompletos.reduce((total, turno) => total + turno.aulas, 0);
             const excessoDeAulas = Math.max(0, aulasParciais - restoPermitido);
-            return excessoDeTurnos * (NUM_AULAS + 1) + excessoDeAulas;
+            const diasSemAula = exigePresencaDiariaNaGeracao(t) ? uso.diasSemAula.length : 0;
+            return diasSemAula * (NUM_AULAS + 1) * 10 + excessoDeTurnos * (NUM_AULAS + 1) + excessoDeAulas;
         }
 
         function desvioEstruturalTurnos(lista) {
@@ -896,6 +967,7 @@
                             const val = t.horario[fonte.d][chaveFonte];
                             const params = parametrosDaCelula(val);
                             if(!params.length) continue;
+                            if(exigePresencaDiariaNaGeracao(t) && alvo.d !== fonte.d && diaFicariaSemAulaAoRemover(t, fonte.d, fonte.t, chaveFonte)) continue;
                             for(const h of HORARIOS) {
                                 const chaveAlvo = `${alvo.t}${h}`;
                                 if(t.horario[alvo.d][chaveAlvo]) continue;
@@ -933,17 +1005,21 @@
                 const turnosProtegidos = uso.turnosIncompletos.filter(turno =>
                     HORARIOS.some(h => base?.horario?.[turno.d]?.[`${turno.t}${h}`])
                 );
+                const turnosDeCobertura = exigePresencaDiariaNaGeracao(t)
+                    ? uso.turnosIncompletos.filter(turno => !diaTemAulaForaDoTurno(t, turno.d, turno.t))
+                    : [];
+                const turnosPreservados = new Set([...turnosProtegidos, ...turnosDeCobertura]);
                 let manter = null;
 
-                if(restoPermitido && turnosProtegidos.length === 0 && uso.turnosIncompletos.length) {
-                    manter = uso.turnosIncompletos.filter(turno => !turnosProtegidos.includes(turno)).sort((a, b) =>
+                if(restoPermitido && turnosPreservados.size === 0 && uso.turnosIncompletos.length) {
+                    manter = uso.turnosIncompletos.filter(turno => !turnosPreservados.has(turno)).sort((a, b) =>
                         (Math.min(restoPermitido, b.aulas) - Math.min(restoPermitido, a.aulas)) ||
                         (b.aulas - a.aulas)
                     )[0];
                 }
 
                 uso.turnosIncompletos.forEach(turno => {
-                    if(turno !== manter && !turnosProtegidos.includes(turno)) apagarAulasDoTurno(t, turno.d, turno.t);
+                    if(turno !== manter && !turnosPreservados.has(turno)) apagarAulasDoTurno(t, turno.d, turno.t);
                 });
                 if(manter) apagarAulasDoTurno(t, manter.d, manter.t, restoPermitido);
             });
@@ -1486,9 +1562,10 @@
             document.getElementById('listaTurmas').innerHTML=[...tur].sort((a,b)=>a.nome.localeCompare(b.nome)||(a.curso||'').localeCompare(b.curso||'')).map(t=>{
                 normalizarTurnosTurma(t);
                 let totalCarga = 0;
+                const presencaDiaria = exigePresencaDiariaNaGeracao(t);
                 const badgesTurno = [
                     t.turnosFlexiveis !== false ? '<span class="ml-1 px-1.5 py-0.5 rounded bg-green-100 text-green-700 border border-green-200">Flex</span>' : '<span class="ml-1 px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 border border-gray-200">Fixo</span>',
-                    t.exigirTurnoDiario ? '<span class="ml-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200">1 turno/dia</span>' : ''
+                    presencaDiaria ? `<span class="ml-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 border border-blue-200" title="${t.exigirTurnoDiario ? 'Regra escolhida para a turma' : 'Regra automática: carga acima de cinco turnos completos e mais de um turno disponível'}">1 turno/dia${t.exigirTurnoDiario ? '' : ' auto'}</span>` : ''
                 ].join('');
                 const discList = t.disciplinas.map(dn => {
                     const dObj = disc.find(x => x.nome === dn);
@@ -1764,6 +1841,7 @@
 
         // --- Lógica de Drag and Drop (Arrastar Aulas) ---
         let draggedSlot = null;
+        let dragFeedbackTimer = null;
         function handleDragStart(ev, tid, d, tr, h) {
             draggedSlot = {type:'slot', tid, d, tr, h};
             ev.dataTransfer.effectAllowed = "move";
@@ -1784,8 +1862,93 @@
             ev.dataTransfer.setData('text/plain', 'limbo');
             ev.target.style.opacity = '0.4';
         }
-        function handleDragEnd(ev) { ev.target.style.opacity = '1'; draggedSlot = null; }
-        function handleDragOver(ev) { ev.preventDefault(); ev.stopPropagation(); ev.dataTransfer.dropEffect = "move"; }
+        function limparDestaquesDeSoltura() {
+            document.querySelectorAll('.drop-possible, .drop-warning, .drop-blocked').forEach(el => {
+                el.classList.remove('drop-possible', 'drop-warning', 'drop-blocked');
+                el.removeAttribute('data-drop-message');
+            });
+        }
+        function mostrarFeedbackArraste(msg, tipo='success') {
+            const el = document.getElementById('dragFeedback');
+            if(!el) return;
+            clearTimeout(dragFeedbackTimer);
+            el.textContent = msg;
+            el.className = `fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] rounded px-4 py-2 text-xs font-bold text-white shadow-lg ${tipo === 'success' ? 'bg-green-700' : tipo === 'warning' ? 'bg-amber-600' : 'bg-red-700'}`;
+            dragFeedbackTimer = setTimeout(() => el.classList.add('hidden'), 2600);
+        }
+        function professorDisponivelParaDisciplina(t, dn) {
+            const vinculados = t?.professores && t.professores[dn] ? normalizarListaPids(t.professores[dn]) : '';
+            if(vinculados) return vinculados;
+            const aptos = prof.filter(p => p.disciplinas.includes(dn));
+            return aptos.length === 1 ? String(aptos[0].id) : '';
+        }
+        function avaliarDestinoArraste(tidDest, dDest, trDest, hDest) {
+            if(!draggedSlot) return { ok:false, estado:'blocked', motivo:'Nenhuma aula está sendo arrastada.' };
+            if(draggedSlot.tid !== tidDest) return { ok:false, estado:'blocked', motivo:'Aulas só podem ser movidas dentro da mesma turma.' };
+            const tDest = tur.find(x => x.id === tidDest);
+            if(!tDest || !tDest.slotsAtivos.includes(`${dDest}-${trDest}`)) return { ok:false, estado:'blocked', motivo:'Este turno não está liberado para a turma.' };
+            if(draggedSlot.d === dDest && draggedSlot.tr === trDest && draggedSlot.h === hDest) return { ok:false, estado:'blocked', motivo:'A aula já está neste horário.' };
+            if(draggedSlot.type === 'slot') return { ok:true, estado:'possible', motivo:'Solte para trocar os horários.' };
+
+            let alocacao = '';
+            if(draggedSlot.type === 'limbo') {
+                const pids = professorDisponivelParaDisciplina(tDest, draggedSlot.dn);
+                if(!pids) return { ok:false, estado:'blocked', motivo:'Vincule um professor para esta disciplina antes de soltá-la.' };
+                const dObj = disc.find(x => x.nome === draggedSlot.dn);
+                alocacao = `${pids}|${draggedSlot.dn}|${(dObj?.amb || []).join('+')}`;
+            } else {
+                const tOrig = tur.find(x => x.id === draggedSlot.tid);
+                const val = tOrig?.horario?.[draggedSlot.d]?.[`${draggedSlot.tr}${draggedSlot.h}`];
+                alocacao = val ? val.split('&')[draggedSlot.idx] || '' : '';
+                if(!alocacao) return { ok:false, estado:'blocked', motivo:'A aula de origem não está mais disponível.' };
+            }
+            const [pids, , sala] = alocacao.split('|');
+            const conflitoProfessor = verificarConflitoHard(pids, dDest, trDest, hDest, tidDest, -1);
+            const conflitoSala = verificarSala(sala, dDest, trDest, hDest, tidDest, -1);
+            if(conflitoProfessor || conflitoSala) return { ok:true, estado:'warning', motivo:`Soltar criará aviso: ${conflitoProfessor || conflitoSala}.` };
+            return { ok:true, estado:'possible', motivo:'Pode soltar aqui.' };
+        }
+        function marcarDestinoArraste(ev, tidDest, dDest, trDest, hDest) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            const alvo = ev.currentTarget;
+            const avaliacao = avaliarDestinoArraste(tidDest, dDest, trDest, hDest);
+            alvo.classList.remove('drop-possible', 'drop-warning', 'drop-blocked');
+            alvo.classList.add(avaliacao.estado === 'warning' ? 'drop-warning' : avaliacao.ok ? 'drop-possible' : 'drop-blocked');
+            alvo.dataset.dropMessage = avaliacao.motivo;
+            alvo.title = avaliacao.motivo;
+            if(ev.dataTransfer) ev.dataTransfer.dropEffect = avaliacao.ok ? 'move' : 'none';
+        }
+        function desmarcarDestinoArraste(ev) {
+            const alvo = ev.currentTarget;
+            if(alvo.contains(ev.relatedTarget)) return;
+            alvo.classList.remove('drop-possible', 'drop-warning', 'drop-blocked');
+            alvo.removeAttribute('data-drop-message');
+        }
+        function sinalizarResultadoDaSoltura(ev, ok, msg) {
+            limparDestaquesDeSoltura();
+            const alvo = ev.currentTarget;
+            if(alvo) {
+                alvo.classList.add(ok ? 'drop-success' : 'drop-blocked');
+                setTimeout(() => alvo.classList.remove('drop-success', 'drop-blocked'), 900);
+            }
+            mostrarFeedbackArraste(msg, ok ? 'success' : 'error');
+        }
+        function handleDragEnd(ev) {
+            ev.target.style.opacity = '1';
+            setTimeout(limparDestaquesDeSoltura, 0);
+            draggedSlot = null;
+        }
+        function handleDragOver(ev, tidDest, dDest, trDest, hDest) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if(tidDest === undefined) {
+                ev.dataTransfer.dropEffect = 'move';
+                return;
+            }
+            const avaliacao = avaliarDestinoArraste(tidDest, dDest, trDest, hDest);
+            ev.dataTransfer.dropEffect = avaliacao.ok ? 'move' : 'none';
+        }
 
         function removerAlocacaoIndex(tid,d,tCode,h,idx) {
             const t = tur.find(x => x.id === tid);
@@ -1796,6 +1959,16 @@
             const [removida] = alocs.splice(idx, 1);
             t.horario[d][k] = alocs.length ? alocs.join('&') : null;
             return removida || null;
+        }
+
+        function restaurarAlocacaoIndex(tid,d,tCode,h,idx,aloc) {
+            const t = tur.find(x => x.id === tid);
+            if(!t || !t.horario[d] || !aloc) return false;
+            const k = `${tCode}${h}`;
+            const alocs = t.horario[d][k] ? t.horario[d][k].split('&') : [];
+            alocs.splice(Math.max(0, Math.min(idx, alocs.length)), 0, aloc);
+            t.horario[d][k] = alocs.join('&');
+            return true;
         }
 
         function validarAlocacaoNoSlot(aloc, tid, d, tCode, h, selfIdx=-1) {
@@ -1843,33 +2016,42 @@
         function handleDrop(ev, tidDest, dDest, trDest, hDest) {
             ev.preventDefault();
             ev.stopPropagation();
-            if(!draggedSlot) return;
-            // Aulas pertencem à turma: soltar na grade de outra turma levaria disciplinas que ela não tem.
-            if(draggedSlot.tid !== tidDest) {
-                uiAlert("Só é possível mover aulas dentro da mesma turma.");
+            const avaliacao = avaliarDestinoArraste(tidDest, dDest, trDest, hDest);
+            if(!avaliacao.ok) {
+                sinalizarResultadoDaSoltura(ev, false, avaliacao.motivo);
                 return;
             }
             if(draggedSlot.type === 'limbo') {
                 const tDest = tur.find(x => x.id === tidDest);
                 const aloc = criarAlocacaoDisciplina(tDest, draggedSlot.dn, dDest, trDest, hDest);
-                if(aloc && inserirAlocacaoNoSlot(tidDest, dDest, trDest, hDest, aloc)) { invalidarUndo(); salvar(); }
+                if(aloc && inserirAlocacaoNoSlot(tidDest, dDest, trDest, hDest, aloc)) {
+                    invalidarUndo(); salvar();
+                    sinalizarResultadoDaSoltura(ev, true, 'Aula alocada no novo horário.');
+                } else sinalizarResultadoDaSoltura(ev, false, 'Não foi possível alocar a aula neste horário.');
                 return;
             }
 
             if(draggedSlot.type === 'alloc') {
                 const {tid: tidOrig, d: dOrig, tr: trOrig, h: hOrig, idx} = draggedSlot;
-                if(tidOrig === tidDest && dOrig === dDest && trOrig === trDest && hOrig === hDest) return;
                 const aloc = removerAlocacaoIndex(tidOrig, dOrig, trOrig, hOrig, idx);
-                if(aloc && inserirAlocacaoNoSlot(tidDest, dDest, trDest, hDest, aloc)) { invalidarUndo(); salvar(); }
+                if(aloc && inserirAlocacaoNoSlot(tidDest, dDest, trDest, hDest, aloc)) {
+                    invalidarUndo(); salvar();
+                    sinalizarResultadoDaSoltura(ev, true, 'Aula movida para o novo horário.');
+                } else {
+                    restaurarAlocacaoIndex(tidOrig, dOrig, trOrig, hOrig, idx, aloc);
+                    sinalizarResultadoDaSoltura(ev, false, 'A aula permaneceu no horário original.');
+                }
                 return;
             }
 
             if(draggedSlot.type === 'slot') {
                 const {tid: tidOrig, d: dOrig, tr: trOrig, h: hOrig} = draggedSlot;
-                if(tidOrig === tidDest && dOrig === dDest && trOrig === trDest && hOrig === hDest) return;
                 
                 const tOrig = tur.find(x => x.id === tidOrig); const tDest = tur.find(x => x.id === tidDest);
-                if (!tOrig || !tDest) return;
+                if (!tOrig || !tDest) {
+                    sinalizarResultadoDaSoltura(ev, false, 'Não foi possível localizar o horário de origem.');
+                    return;
+                }
                 
                 const kOrig = `${trOrig}${hOrig}`; const kDest = `${trDest}${hDest}`;
                 const valOrig = tOrig.horario[dOrig][kOrig]; const valDest = tDest.horario[dDest][kDest];
@@ -1878,6 +2060,7 @@
                 tDest.horario[dDest][kDest] = valOrig;
                 
                 invalidarUndo(); salvar();
+                sinalizarResultadoDaSoltura(ev, true, 'Horários trocados.');
             }
         }
 
@@ -2164,7 +2347,7 @@
                         }
                         
                         const cellBg = val ? 'bg-white' : '';
-                        h+=`<td class="border p-1 ${cellBg} align-middle cursor-move hover:shadow-inner transition-all" draggable="true" ondragstart="handleDragStart(event, '${t.id}', ${dx}, '${tr.id}', ${hr})" ondragend="handleDragEnd(event)" ondragover="handleDragOver(event)" ondragenter="this.classList.add('bg-blue-200','opacity-80')" ondragleave="this.classList.remove('bg-blue-200','opacity-80')" ondrop="this.classList.remove('bg-blue-200','opacity-80'); handleDrop(event, '${t.id}', ${dx}, '${tr.id}', ${hr})">${cellHTML}</td>`;
+                        h+=`<td class="border p-1 ${cellBg} align-middle cursor-move hover:shadow-inner transition-all" draggable="true" ondragstart="handleDragStart(event, '${t.id}', ${dx}, '${tr.id}', ${hr})" ondragend="handleDragEnd(event)" ondragover="handleDragOver(event, '${t.id}', ${dx}, '${tr.id}', ${hr})" ondragenter="marcarDestinoArraste(event, '${t.id}', ${dx}, '${tr.id}', ${hr})" ondragleave="desmarcarDestinoArraste(event)" ondrop="handleDrop(event, '${t.id}', ${dx}, '${tr.id}', ${hr})">${cellHTML}</td>`;
                     });
                     h+=`</tr>`;
                 });});h+=`</tbody></table></div></div>`;
@@ -2313,7 +2496,7 @@
                     if(cnt[d]>m) rel.avisos.push(`<b>${t.nome}:</b> ${d} excedeu limite.`);
                 });
                 const usoTurnos = analisarUsoTurnosTurma(t);
-                if(t.exigirTurnoDiario) {
+                if(exigePresencaDiariaNaGeracao(t)) {
                     usoTurnos.diasSemAula.forEach(dia => rel.erros.push(`<b>${t.nome}:</b> precisa ter pelo menos 1 turno em ${DIAS[dia]}.`));
                 }
                 if(t.turnosFlexiveis !== false) {
@@ -2568,15 +2751,26 @@
                 });
             });
 
+            // 5b. Blocos de uma disciplina extensa devem ocupar dias diferentes
+            // sempre que houver dias letivos disponíveis para isso.
+            lista.forEach(t => {
+                t.disciplinas.forEach(dn => {
+                    const dObj = disc.find(x => x.nome === dn);
+                    if(blocosDesejadosDisciplina(dObj) < 2) return;
+                    pen += desvioDistribuicaoSemanalDisciplina(t, dn, dObj) * pesoRestricao('fragmentacaoBlocos');
+                });
+            });
+
             // 6. Regras estruturais de turnos da turma (as turmas já chegam normalizadas: a penalidade não altera dados)
             lista.forEach(t => {
                 const uso = analisarUsoTurnosTurma(t);
-                if(t.exigirTurnoDiario && uso.diasSemAula.length) {
+                const exigePresencaDiaria = exigePresencaDiariaNaGeracao(t);
+                if(exigePresencaDiaria && uso.diasSemAula.length) {
                     pen += uso.diasSemAula.length * pesoRestricao('turnoDiario');
                 }
                 if(t.turnosFlexiveis !== false) {
                     pen += uso.turnosIncompletos.length * pesoRestricao('turnoIncompleto');
-                    const turnosBase = t.exigirTurnoDiario ? Math.min(DIAS.length, uso.turnosUsados.length) : 0;
+                    const turnosBase = exigePresencaDiaria ? Math.min(DIAS.length, uso.turnosUsados.length) : 0;
                     pen += Math.max(0, uso.turnosUsados.length - turnosBase) * pesoRestricao('concentracaoTurnos');
                 }
             });
@@ -2939,6 +3133,15 @@
             if(params.some(p => temEvitar(p.pids, s.d, s.t, s.h))) score += pesoRestricao('evitar') * 10;
             if(tentativa.softBad) score += Math.max(pesoRestricao('manhaNoiteMesmoDia'), pesoRestricao('tresTurnos')) / 2;
             if(b === 1 && params.some(p => !p.splits && p.carga > 2 && p.missing > 1)) score += pesoRestricao('fragmentacaoBlocos') * 1.5;
+            params.forEach(p => {
+                const blocosDesejados = blocosDesejadosDisciplina(p);
+                if(blocosDesejados < 2) return;
+                const uso = usoSemanalDisciplinaTurma(t, p.dn);
+                const diasDesejados = Math.min(DIAS.length, blocosDesejados);
+                if(uso.dias.size >= diasDesejados) return;
+                if(uso.dias.has(s.d)) score += pesoRestricao('fragmentacaoBlocos') * 4;
+                else score -= Math.max(1, pesoRestricao('fragmentacaoBlocos') / 10);
+            });
             const ocupSala = idx.salaSlot.get(chaveSlotIndexado(s.d, s.t, s.h));
             score += ocupSala ? ocupSala.size * 5 : 0;
             params.forEach((p, pi) => {
@@ -2962,7 +3165,7 @@
                 if(aulasDepois >= NUM_AULAS) score -= Math.max(1, pesoRestricao('turnoIncompleto') / 3);
                 else if(aulasTurno > 0) score += (NUM_AULAS - aulasDepois) * Math.max(1, pesoRestricao('turnoIncompleto') / (NUM_AULAS * 12));
             }
-            if(t.exigirTurnoDiario) {
+            if(exigePresencaDiariaNaGeracao(t)) {
                 const diaJaTemAula = TURNOS.some(tr => contarAulasNoTurnoTurma(t, s.d, tr.id) > 0);
                 if(!diaJaTemAula) score -= Math.max(1, pesoRestricao('turnoDiario') / 4);
             }
@@ -3211,8 +3414,9 @@
             'pesoRestricao', 'getBaseAmb', 'instanciasAmbienteFisicas', 'tokensAmbiente', 'ambienteEhGrupo',
             'salaOcupadaConcreta', 'preferenciasAmbienteTurma', 'escolherInstanciaGrupo', 'resolverAmbientesParaAlocacao',
             'chaveTurnoTurma', 'todosTurnosTurmaIds', 'turnosBloqueadosSet', 'turnosAlocaveisTurma', 'normalizarTurnosTurma',
-            'contarAulasNoTurnoTurma', 'analisarUsoTurnosTurma', 'cargaPlanejadaTurma', 'desvioEstruturalTurnosTurma',
-            'desvioEstruturalTurnos', 'apagarAulasDoTurno', 'parametrosDaCelula', 'consolidarTurnosIncompletos',
+            'contarAulasNoTurnoTurma', 'analisarUsoTurnosTurma', 'cargaPlanejadaTurma', 'exigePresencaDiariaNaGeracao',
+            'diaTemAulaForaDoTurno', 'diaFicariaSemAulaAoRemover', 'usoSemanalDisciplinaTurma', 'blocosDesejadosDisciplina', 'desvioDistribuicaoSemanalDisciplina',
+            'desvioEstruturalTurnosTurma', 'desvioEstruturalTurnos', 'apagarAulasDoTurno', 'parametrosDaCelula', 'consolidarTurnosIncompletos',
             'compactarTurnosIncompletos', 'pidsFromStr', 'extrasContemPid', 'professorTemAulaHorario',
             'professorTemAulaTurno', 'violariaNoiteManha', 'contarBlocosDisciplinaTurma', 'calcularPenalidade', 'temEvitar',
             'contarAlocadasTurma', 'contarFaltas', 'montarParamAlocacao', 'getGrupoVinculadoPendente', 'calcularPrioridadeReq',
@@ -4128,6 +4332,13 @@
                 if (fr.unit > unitOk) pen += (fr.unit - unitOk) * Math.floor(wF / 2);
               });
             });
+            lista.forEach(t => {
+              t.disciplinas.forEach(dn => {
+                const dObj = C.discMap.get(dn);
+                if (blocosDesejadosDisciplina(dObj) < 2) return;
+                pen += desvioDistribuicaoSemanalDisciplina(t, dn, dObj) * wF;
+              });
+            });
             const wTD = W('turnoDiario'), wTI = W('turnoIncompleto'), wCT = W('concentracaoTurnos');
             lista.forEach((t, ti) => {
               let usados = 0, incompletos = 0; const dias = new Set();
@@ -4137,10 +4348,11 @@
                 if (q > 0) { usados++; dias.add(d); if (q < NA) incompletos++; }
               }
               const semAula = ND - dias.size;
-              if (t.exigirTurnoDiario && semAula) pen += semAula * wTD;
+              const exigePresencaDiaria = exigePresencaDiariaNaGeracao(t);
+              if (exigePresencaDiaria && semAula) pen += semAula * wTD;
               if (t.turnosFlexiveis !== false) {
                 pen += incompletos * wTI;
-                const base = t.exigirTurnoDiario ? Math.min(ND, usados) : 0;
+                const base = exigePresencaDiaria ? Math.min(ND, usados) : 0;
                 pen += Math.max(0, usados - base) * wCT;
               }
             });
