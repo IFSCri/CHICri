@@ -24,6 +24,7 @@
         .drop-possible { background-color: #dcfce7 !important; outline: 2px solid #16a34a; outline-offset: -2px; }
         .drop-warning { background-color: #fef3c7 !important; outline: 2px solid #d97706; outline-offset: -2px; }
         .drop-blocked { background-color: #fee2e2 !important; outline: 2px solid #dc2626; outline-offset: -2px; }
+        .drop-pending { background-color: #eff6ff !important; outline: 2px dashed #2563eb; outline-offset: -2px; }
         .drop-success { background-color: #dcfce7 !important; transition: background-color 0.2s; }
 
         @media (min-width: 1024px) {
@@ -1858,6 +1859,9 @@
         // --- Lógica de Drag and Drop (Arrastar Aulas) ---
         let draggedSlot = null;
         let dragFeedbackTimer = null;
+        let dragPreviewTimer = null;
+        let dragPreviewKey = '';
+        let dragPreviewTarget = null;
         function handleDragStart(ev, tid, d, tr, h) {
             draggedSlot = {type:'slot', tid, d, tr, h};
             ev.dataTransfer.effectAllowed = "move";
@@ -1878,11 +1882,28 @@
             ev.dataTransfer.setData('text/plain', 'limbo');
             ev.target.style.opacity = '0.4';
         }
+        function limparEstadoVisualDeSoltura(alvo) {
+            if(!alvo) return;
+            alvo.classList.remove('drop-pending', 'drop-possible', 'drop-warning', 'drop-blocked');
+            alvo.removeAttribute('data-drop-message');
+            if('dragOriginalTitle' in alvo.dataset) {
+                const tituloOriginal = alvo.dataset.dragOriginalTitle;
+                if(tituloOriginal) alvo.title = tituloOriginal;
+                else alvo.removeAttribute('title');
+                delete alvo.dataset.dragOriginalTitle;
+            }
+        }
+        function cancelarPreviaDeSoltura(alvo = null) {
+            if(alvo && dragPreviewTarget && alvo !== dragPreviewTarget) return;
+            clearTimeout(dragPreviewTimer);
+            dragPreviewTimer = null;
+            limparEstadoVisualDeSoltura(dragPreviewTarget);
+            dragPreviewTarget = null;
+            dragPreviewKey = '';
+        }
         function limparDestaquesDeSoltura() {
-            document.querySelectorAll('.drop-possible, .drop-warning, .drop-blocked').forEach(el => {
-                el.classList.remove('drop-possible', 'drop-warning', 'drop-blocked');
-                el.removeAttribute('data-drop-message');
-            });
+            cancelarPreviaDeSoltura();
+            document.querySelectorAll('.drop-pending, .drop-possible, .drop-warning, .drop-blocked').forEach(limparEstadoVisualDeSoltura);
         }
         function mostrarFeedbackArraste(msg, tipo='success') {
             const el = document.getElementById('dragFeedback');
@@ -1924,22 +1945,40 @@
             if(conflitoProfessor || conflitoSala) return { ok:true, estado:'warning', motivo:`Soltar criará aviso: ${conflitoProfessor || conflitoSala}.` };
             return { ok:true, estado:'possible', motivo:'Pode soltar aqui.' };
         }
+        function agendarPreviaDeSoltura(alvo, tidDest, dDest, trDest, hDest) {
+            if(!draggedSlot || !alvo) return;
+            const chave = `${tidDest}|${dDest}|${trDest}|${hDest}`;
+            if(dragPreviewTarget === alvo && dragPreviewKey === chave) return;
+
+            cancelarPreviaDeSoltura();
+            dragPreviewTarget = alvo;
+            dragPreviewKey = chave;
+            if(!('dragOriginalTitle' in alvo.dataset)) alvo.dataset.dragOriginalTitle = alvo.getAttribute('title') || '';
+            alvo.classList.add('drop-pending');
+            alvo.dataset.dropMessage = 'Verificando se a troca é viável…';
+            alvo.title = alvo.dataset.dropMessage;
+
+            dragPreviewTimer = setTimeout(() => {
+                if(!draggedSlot || dragPreviewTarget !== alvo || dragPreviewKey !== chave) return;
+                dragPreviewTimer = null;
+                const avaliacao = avaliarDestinoArraste(tidDest, dDest, trDest, hDest);
+                alvo.classList.remove('drop-pending', 'drop-possible', 'drop-warning', 'drop-blocked');
+                alvo.classList.add(avaliacao.estado === 'warning' ? 'drop-warning' : avaliacao.ok ? 'drop-possible' : 'drop-blocked');
+                alvo.dataset.dropMessage = avaliacao.motivo;
+                alvo.title = avaliacao.motivo;
+            }, 200);
+        }
         function marcarDestinoArraste(ev, tidDest, dDest, trDest, hDest) {
             ev.preventDefault();
             ev.stopPropagation();
             const alvo = ev.currentTarget;
-            const avaliacao = avaliarDestinoArraste(tidDest, dDest, trDest, hDest);
-            alvo.classList.remove('drop-possible', 'drop-warning', 'drop-blocked');
-            alvo.classList.add(avaliacao.estado === 'warning' ? 'drop-warning' : avaliacao.ok ? 'drop-possible' : 'drop-blocked');
-            alvo.dataset.dropMessage = avaliacao.motivo;
-            alvo.title = avaliacao.motivo;
-            if(ev.dataTransfer) ev.dataTransfer.dropEffect = avaliacao.ok ? 'move' : 'none';
+            agendarPreviaDeSoltura(alvo, tidDest, dDest, trDest, hDest);
+            if(ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
         }
         function desmarcarDestinoArraste(ev) {
             const alvo = ev.currentTarget;
             if(alvo.contains(ev.relatedTarget)) return;
-            alvo.classList.remove('drop-possible', 'drop-warning', 'drop-blocked');
-            alvo.removeAttribute('data-drop-message');
+            cancelarPreviaDeSoltura(alvo);
         }
         function sinalizarResultadoDaSoltura(ev, ok, msg) {
             limparDestaquesDeSoltura();
@@ -1952,6 +1991,7 @@
         }
         function handleDragEnd(ev) {
             ev.target.style.opacity = '1';
+            cancelarPreviaDeSoltura();
             setTimeout(limparDestaquesDeSoltura, 0);
             draggedSlot = null;
         }
@@ -1962,8 +2002,8 @@
                 ev.dataTransfer.dropEffect = 'move';
                 return;
             }
-            const avaliacao = avaliarDestinoArraste(tidDest, dDest, trDest, hDest);
-            ev.dataTransfer.dropEffect = avaliacao.ok ? 'move' : 'none';
+            agendarPreviaDeSoltura(ev.currentTarget, tidDest, dDest, trDest, hDest);
+            ev.dataTransfer.dropEffect = 'move';
         }
 
         function removerAlocacaoIndex(tid,d,tCode,h,idx) {
