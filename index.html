@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123c36">
+  <title>Horários publicados | CHICri</title>
+  <link rel="icon" href="https://i.ibb.co/qFgNh0LT/CHICri.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#173c32;--muted:#657b70;--green:#007a53;--mint:#e6f2eb;--paper:#f3f7f4;--line:#dce8e0;--white:#fff;--blue:#376c92;--orange:#bb6a31;--purple:#7059a3;--shadow:0 10px 30px #173b320c}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:"DM Sans",sans-serif}button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1440px;margin:auto;padding:14px 24px 40px}.topline{display:flex;align-items:center;justify-content:flex-end;gap:16px;height:24px;margin-bottom:10px}.brand{display:none}.brandmark{width:39px;height:39px;border-radius:13px;background:var(--green);color:#fff;display:grid;place-items:center;font-size:18px}.live{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px}.dot{height:8px;width:8px;border-radius:50%;background:#25a673;box-shadow:0 0 0 4px #25a67320}.hero{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.hero .browse-hint{display:block;margin:0;font:700 clamp(19px,2.5vw,26px)/1.2 Manrope,sans-serif;letter-spacing:-.035em;color:var(--ink)}.eyebrow,.hero p{display:none}.updated{min-width:0;background:transparent;border:0;border-radius:0;padding:0;box-shadow:none;color:var(--muted);font-size:11px;white-space:nowrap}.updated small{display:inline;color:var(--green);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:0 8px 0 0}.updated strong{font-size:11px;color:var(--ink)}.tabs{display:flex;gap:3px;padding:4px;background:#e3eee7;border-radius:11px;width:max-content;max-width:100%;margin:0}.tab{border:0;background:transparent;color:#526c60;border-radius:8px;padding:9px 13px;font-weight:700;font-size:12px;transition:.18s;white-space:nowrap}.tab:hover{color:var(--ink);background:#ffffff88}.tab.active{color:#fff;background:var(--green);box-shadow:0 2px 6px #005d3c25}.tab .icon{margin-right:6px}.toolbar{display:flex;align-items:center;gap:9px;flex-wrap:nowrap;margin:0 0 13px}.toolbar .tabs{flex-shrink:0}.searchbox{position:relative;flex:1;min-width:180px;max-width:440px}.searchbox input{width:100%;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px 9px 34px;color:var(--ink);outline:none;font-size:12px}.searchbox input:focus{border-color:#62a282;box-shadow:0 0 0 3px #007a5315}.searchicon{position:absolute;left:12px;top:7px;color:#84958f}.select{border:1px solid var(--line);border-radius:10px;padding:8px 11px;background:#fff;color:var(--ink);outline:none;font-size:12px;max-width:180px}.count{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap}.schedule{overflow:auto;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}table{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;table-layout:fixed}thead th{position:sticky;top:0;z-index:2;background:#edf4ef;padding:8px 10px;border-bottom:1px solid var(--line);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#456557;text-align:left}thead th:first-child{width:58px;text-align:center}tbody th{width:58px;background:#f6f9f6;color:#71817b;font-size:10px;font-weight:700;text-align:center;border-bottom:1px solid #edf1ed;padding:5px 4px}td{height:48px;vertical-align:top;padding:3px;border-bottom:1px solid #edf1ed;border-left:1px solid #edf1ed}.slot{height:100%;min-height:34px;border-radius:7px;padding:5px 7px;background:var(--tint,#edf5f1);border-left:3px solid var(--accent,#37816a);display:flex;flex-direction:column;gap:2px;overflow:hidden}.slot strong{font-size:10px;line-height:1.15}.slot span{font-size:9px;color:#536861;line-height:1.15}.slot .room{margin-top:auto;color:#788a83}.empty{color:#d3dcd6;font-size:10px;padding:4px;text-align:center}.turno{padding:4px 8px;background:#e5f0e8;color:#35624c;font-weight:800;font-size:9px;letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--line)}.section{padding:9px 12px 7px;font:800 12px Manrope,sans-serif;background:#fff;border-bottom:1px solid var(--line)}.section span{font:500 10px "DM Sans",sans-serif;color:var(--muted);margin-left:8px}.empty-state{background:#fff;border:1px solid var(--line);border-radius:12px;padding:38px 20px;text-align:center;color:var(--muted)}.empty-state strong{display:block;color:var(--ink);font:700 15px Manrope,sans-serif;margin-bottom:7px}.error{display:none;background:#fff2ef;border:1px solid #f1d0c9;color:#9d4438;padding:12px 14px;border-radius:10px;margin-bottom:12px;font-size:12px}.skeleton{height:280px;border-radius:12px;background:linear-gradient(100deg,#fff 20%,#edf2ed 38%,#fff 56%);background-size:200% 100%;animation:shine 1.4s infinite;border:1px solid var(--line)}@keyframes shine{to{background-position-x:-200%}}.refresh{border:1px solid var(--line);border-radius:10px;background:#fff;padding:8px 11px;color:var(--green);font-weight:700;font-size:11px}.refresh:hover{background:var(--mint)}footer{display:flex;justify-content:flex-end;gap:12px;margin-top:10px;color:#87968f;font-size:10px}@media(max-width:700px){.shell{padding:10px 10px 25px}.topline{margin-bottom:8px}.hero{margin-bottom:9px;gap:6px}.hero .browse-hint{font-size:16px}.updated{font-size:9px}.updated small{margin-right:3px;font-size:8px}.updated strong{font-size:9px}.toolbar{flex-wrap:wrap}.toolbar .tabs{order:0;width:auto;flex:1;justify-content:space-between}.searchbox{order:1;max-width:none;flex:1 1 100%}.select{order:2}.count{order:3;margin-left:auto}.tab{padding:8px 7px;font-size:11px}.tab .icon{margin-right:3px}.schedule{border-radius:10px}table{min-width:700px}td{height:42px}.slot{min-height:28px;padding:4px 5px}.slot strong{font-size:9px}}
+    @media print{body{background:#fff}.shell{max-width:none;padding:0}.topline,.tabs,.toolbar,footer{display:none!important}.hero{margin:0 0 8px}.updated{box-shadow:none}.schedule{overflow:visible;box-shadow:none;border-radius:0}table{min-width:0;font-size:9px}thead th{position:static}td{height:42px;padding:3px}.slot{min-height:30px;padding:4px}.slot strong{font-size:9px}.slot span{font-size:8px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <h1 class="browse-hint">Selecione um item para ver sua grade de horários.</h1>
+      <div class="updated"><small>Última publicação</small><strong id="versionDate">Carregando…</strong></div>
+    </section>
+    <div id="errorBox" class="error"></div>
+    <div class="toolbar">
+      <nav class="tabs" aria-label="Tipo de horário">
+        <button class="tab active" data-view="turmas"><span class="icon">▦</span>Turmas</button>
+        <button class="tab" data-view="professores"><span class="icon">◉</span>Professores</button>
+        <button class="tab" data-view="ambientes"><span class="icon">⌂</span>Ambientes</button>
+      </nav>
+      <label class="searchbox"><span class="searchicon">⌕</span><input id="search" type="search" placeholder="Buscar professor…" autocomplete="off"></label>
+      <select id="courseFilter" class="select" hidden><option value="">Todos os cursos</option></select>
+      <button class="refresh" type="button" onclick="window.print()">⎙ Imprimir</button>
+      <span id="resultCount" class="count"></span>
+    </div>
+    <div id="content"><div class="skeleton"></div></div>
+    <footer><span>Horários oficiais publicados pela coordenação.</span></footer>
+  </main>
+  <script>
+    const SERVICE_URL = 'https://script.google.com/macros/s/AKfycbwOE0oeB738XSWvM7Exe4rmkIvnOtqbqU5CmTu0SKM2NMeYrDH2JZXhE_AWzVS1gGuC/exec';
+    const DAYS = ['Segunda','Terça','Quarta','Quinta','Sexta'];
+    const TURNS = [{id:'M',name:'Manhã',color:'#32826b',tint:'#edf6f1'},{id:'T',name:'Tarde',color:'#c57639',tint:'#fbf2e9'},{id:'N',name:'Noite',color:'#7463a6',tint:'#f2eff8'}];
+    const COLORS = [
+      {accent:'#c62828',tint:'#ffebee'}, {accent:'#1565c0',tint:'#e3f2fd'},
+      {accent:'#ef6c00',tint:'#fff3e0'}, {accent:'#6a1b9a',tint:'#f3e5f5'},
+      {accent:'#00838f',tint:'#e0f7fa'}, {accent:'#ad1457',tint:'#fce4ec'},
+      {accent:'#2e7d32',tint:'#e8f5e9'}, {accent:'#4527a0',tint:'#ede7f6'},
+      {accent:'#9a6700',tint:'#fff8e1'}, {accent:'#0277bd',tint:'#e1f5fe'},
+      {accent:'#558b2f',tint:'#f1f8e9'}, {accent:'#d84315',tint:'#fbe9e7'},
+      {accent:'#283593',tint:'#e8eaf6'}, {accent:'#00695c',tint:'#e0f2f1'},
+      {accent:'#880e4f',tint:'#fce4ec'}, {accent:'#4e342e',tint:'#efebe9'}
+    ];
+    let scheduleData = null, view = 'turmas', versionKey = '', lastCheck = 0;
+
+    function safe(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function splitTeachers(value){return [...new Set(String(value||'').split('+').map(name=>name.trim()).filter(Boolean))];}
+    function parseCRIC(text){
+      const data={days:4,rooms:[],subjects:[],teachers:[],classes:[],allocations:[]};
+      const classMap=new Map(),teacherMap=new Map();
+      for(const raw of String(text).replace(/^\uFEFF/,'').split(/\r?\n/)){
+        if(!raw.trim())continue;
+        const c=raw.split('§');
+        if(c[0]==='CFG'&&c[1]==='AULAS')data.days=Math.max(1,Number(c[2])||4);
+        else if(c[0]==='AMB')data.rooms.push({name:c[1]||'Sem ambiente',cap:c[2]||'',qtd:c[3]||''});
+        else if(c[0]==='DISC')data.subjects.push(c[1]);
+        else if(c[0]==='PROF'){
+          const name=c[1]||'Professor'; if(!teacherMap.has(name)){const teacher={name,classes:[]};teacherMap.set(name,teacher);data.teachers.push(teacher);}
+        }
+        else if(c[0]==='TURMA'){
+          const cls={name:c[1]||'Turma',course:c[2]||'Geral',subjects:(c[3]||'').split('|').filter(Boolean),slots:(c[4]||'').split('|').filter(Boolean),students:c[5]||''};
+          classMap.set(cls.name,cls);data.classes.push(cls);
+        }
+        else if(c[0]==='ALOC'){
+          const d=Number(c[2]),turn=c[3],hour=Number(c[4]);if(!Number.isFinite(d)||!turn||!hour)continue;
+          const a=(c[5]||'').split('|');const alloc={className:c[1]||'',day:d,turn,hour,teacher:a[0]||'',teachers:splitTeachers(a[0]),subject:a[1]||'',room:a[2]||''};data.allocations.push(alloc);
+          for(const name of alloc.teachers){
+            if(!teacherMap.has(name)){const teacher={name,classes:[]};teacherMap.set(name,teacher);data.teachers.push(teacher);}
+            teacherMap.get(name).classes.push({...alloc,teacher:name});
+          }
+          const cls=classMap.get(alloc.className);if(cls)cls.allocations=(cls.allocations||[]).concat(alloc);
+        }
+      }
+      data.rooms=data.rooms.filter(r=>r.name.toUpperCase()!=='SEM AMBIENTE');
+      return data;
+    }
+    function getColor(index){return COLORS[index%COLORS.length];}
+    function colorKey(value){return String(value??'').trim().toLocaleLowerCase('pt-BR');}
+    function timeKeys(data){return Array.from({length:data.days},(_,d)=>d);}
+    function turnOrder(turn){return TURNS.findIndex(t=>t.id===turn);}
+    function escapeAttr(v){return safe(v).replace(/`/g,'&#96;');}
+    function cellCard(a,mode,colorIndex){
+      if(!a)return '<div class="empty">—</div>';
+      const room=a.room&&a.room.toUpperCase()!=='SEM AMBIENTE'?`<span class="room">⌂ ${safe(a.room)}</span>`:'';
+      const title=mode==='professores'?a.className:mode==='turmas'?`${a.subject} · ${a.teacher}`:`${a.className} · ${a.subject}`;
+      const sub=mode==='professores'?`${a.subject} · ${a.teacher}`:mode==='turmas'?a.room:`${a.teacher} · ${a.room}`;
+      const color=getColor(colorIndex);
+      return `<div class="slot" style="--accent:${color.accent};--tint:${color.tint}"><strong>${safe(title)}</strong><span>${safe(sub)}</span>${room}</div>`;
+    }
+    function makeGrid(items,mode,colorMap){
+      const hours=Array.from({length:scheduleData.days},(_,d)=>d);
+      const maxHour=Math.max(1,...scheduleData.allocations.map(a=>a.hour));
+      const trs=[...TURNS].filter(t=>scheduleData.allocations.some(a=>a.turn===t.id));
+      let html='<div class="schedule"><table><thead><tr><th>Hora</th>'+DAYS.map(d=>`<th>${d}</th>`).join('')+'</tr></thead><tbody>';
+      for(const tr of trs){html+=`<tr><th colspan="6" class="turno">${tr.name}</th></tr>`;
+        for(let h=1;h<=maxHour;h++){
+          const any=items.some(item=>item.allocations.some(a=>a.turn===tr.id&&a.hour===h));if(!any)continue;
+          html+=`<tr><th>${h}ª</th>`+hours.map(d=>{const a=items.flatMap(x=>x.allocations).find(x=>x.day===d&&x.turn===tr.id&&x.hour===h);const key=mode==='turmas'?a?.subject:a?.className;const colorIndex=a?(colorMap.get(colorKey(key))??0):0;return `<td>${cellCard(a,mode,colorIndex)}</td>`;}).join('')+'</tr>';
+        }
+      }
+      return html+'</tbody></table></div>';
+    }
+    function render(){
+      if(!scheduleData)return;
+      const query=document.getElementById('search').value.trim().toLocaleLowerCase('pt-BR');
+      const course=document.getElementById('courseFilter').value;
+      let items=[],mode=view;
+      if(view==='professores')items=scheduleData.teachers.map(x=>({...x,allocations:x.classes})).filter(x=>x.allocations.length);
+      else if(view==='turmas')items=scheduleData.classes.map(x=>({...x,allocations:x.allocations||[]})).filter(x=>x.allocations.length&&(!course||x.course===course));
+      else items=scheduleData.rooms.map(x=>({...x,allocations:scheduleData.allocations.filter(a=>a.room===x.name)})).filter(x=>x.allocations.length);
+      items=items.filter(x=>x.name.toLocaleLowerCase('pt-BR').includes(query));
+      items.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
+      document.getElementById('resultCount').textContent=`${items.length} ${view==='professores'?'professor(es)':view==='turmas'?'turma(s)':'ambiente(s)'}`;
+      document.getElementById('search').placeholder=`Buscar ${view==='professores'?'professor':view==='turmas'?'turma ou aluno':'ambiente'}…`;
+      const filter=document.getElementById('courseFilter');filter.hidden=view!=='turmas';
+      if(!items.length){document.getElementById('content').innerHTML='<div class="empty-state"><strong>Nenhum horário encontrado</strong>Tente outro nome ou ajuste o filtro.</div>';return;}
+      document.getElementById('content').innerHTML=items.map(item=>{
+        // Na grade de uma turma, a cor distingue disciplinas. Em professores e
+        // ambientes, a cor distingue as turmas que aparecem naquela grade.
+        const keys=view==='turmas'
+          ? scheduleData.allocations.map(a=>a.subject)
+          : scheduleData.classes.map(x=>x.name);
+        const orderedKeys=[...new Set(keys.map(colorKey).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+        const colorMap=new Map(orderedKeys.map((key,index)=>[key,index%COLORS.length]));
+        const sectionColor=view==='turmas'
+          ? scheduleData.classes.find(x=>x.name===item.name)?.name
+          : item.name;
+        const sectionIndex=orderedKeys.indexOf(colorKey(sectionColor));
+        return `<section style="margin-bottom:18px"><div class="section" style="border-left:5px solid ${getColor(sectionIndex<0?0:sectionIndex).accent}">${safe(item.name)}${view==='turmas'?`<span>${safe(item.course)}${item.students?` · ${safe(item.students)} alunos`:''}</span>`:''}</div>${makeGrid([item],mode,colorMap)}</section>`;
+      }).join('');
+    }
+    async function load(force=false){
+      const error=document.getElementById('errorBox');if(force||!scheduleData)document.getElementById('content').innerHTML='<div class="skeleton"></div>';
+      try{
+        const response=await fetch(`${SERVICE_URL}?acao=metadados_versao_publicada&_=${Date.now()}`,{cache:'no-store'});
+        if(!response.ok)throw new Error('Não foi possível consultar a publicação.');
+        const meta=await response.json();if(meta.status==='erro')throw new Error(meta.mensagem||'Falha ao verificar a versão.');
+        const key=[meta.versao,meta.publicadoEm,meta.partes,meta.tamanho].join('|');
+        if(!scheduleData||key!==versionKey){
+          const r=await fetch(`${SERVICE_URL}?acao=versao_publicada&_=${Date.now()}`,{cache:'no-store'});if(!r.ok)throw new Error('Não foi possível baixar o horário publicado.');
+          const text=await r.text();if(text.startsWith('ERRO:'))throw new Error(text.slice(5).trim());
+          scheduleData=parseCRIC(text);versionKey=key;
+          document.getElementById('versionDate').textContent=meta.publicadoEm||meta.versao||'Publicada';
+          const courses=[...new Set(scheduleData.classes.map(x=>x.course).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+          const filter=document.getElementById('courseFilter'),old=filter.value;filter.innerHTML='<option value="">Todos os cursos</option>'+courses.map(c=>`<option value="${escapeAttr(c)}">${safe(c)}</option>`).join('');if(courses.includes(old))filter.value=old;
+          render();
+        }
+        error.style.display='none';
+      }catch(e){if(!scheduleData)document.getElementById('content').innerHTML='<div class="empty-state"><strong>Horário ainda indisponível</strong>A publicação mais recente não pôde ser carregada.</div>';error.textContent=e.message||'Falha de conexão.';error.style.display='block';}
+      lastCheck=Date.now();
+    }
+    document.querySelectorAll('.tab').forEach(btn=>btn.addEventListener('click',()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===btn));view=btn.dataset.view;document.getElementById('search').value='';render();}));
+    document.getElementById('search').addEventListener('input',render);
+    document.getElementById('courseFilter').addEventListener('change',render);
+    load(true);
+  </script>
+</body>
+</html>
