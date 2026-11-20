@@ -123,7 +123,7 @@
                     <button class="text-xs bg-blue-600 hover:bg-blue-700 text-white py-1 px-3 rounded shadow transition font-bold border border-blue-500 flex items-center mr-2">
                         <i class="fas fa-print mr-1"></i> PDF
                     </button>
-                    <div class="absolute right-0 mt-0 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200">
+                    <div class="absolute right-0 mt-0 w-64 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200">
                         <a href="#" onclick="imprimirRelatorio('alunos')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Alunos</a>
                         <a href="#" onclick="imprimirRelatorio('professores')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Professores</a>
                         <a href="#" onclick="imprimirRelatorio('ambientes')" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">Ambientes</a>
@@ -176,12 +176,19 @@
                 </div>
 
                 <div class="relative group">
+                    <button onclick="abrirModalPublicacao()" class="text-xs bg-teal-600 hover:bg-teal-700 text-white py-1 px-3 rounded shadow transition font-bold border border-teal-500 flex items-center" title="Publicar a versão atual para consulta dos professores">
+                        <i class="fas fa-cloud-upload-alt mr-1"></i> Publicar na nuvem
+                    </button>
+                </div>
+
+                <div class="relative group">
                     <button class="text-xs bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded shadow transition flex items-center">
                         <i class="fas fa-upload"></i>
                     </button>
                     <div class="absolute right-0 mt-0 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200">
                         <a href="#" onclick="document.getElementById('cricInput').click()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs"><i class="fas fa-file-import mr-1"></i> Arquivo Local (.cric)</a>
                         <a href="#" onclick="importarDaWeb()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs"><i class="fas fa-cloud-download-alt mr-1"></i> Importar da Nuvem</a>
+                        <a href="#" onclick="importarDefinicoesCoordenadores()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs"><i class="fas fa-user-cog mr-1"></i> Importar definições de coordenadores</a>
                     </div>
                 </div>
                 <input type="file" id="cricInput" accept=".cric,.csv" class="hidden" onclick="this.value=null" onchange="importarCRIC(this)">
@@ -434,10 +441,88 @@
         <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full mx-4"><h3 id="modalTitle" class="text-lg font-bold mb-2 text-gray-800">Atenção</h3><p id="modalMsg" class="text-gray-600 mb-6 text-sm"></p><div class="flex justify-end gap-2"><button id="modalBtnCancel" onclick="closeModal()" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm transition">Cancelar</button><button id="modalBtnConfirm" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm shadow transition">Confirmar</button></div></div>
     </div>
 
+    <div id="publishModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 hidden flex items-center justify-center z-[60]">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full mx-4">
+            <h3 class="text-lg font-bold mb-2 text-teal-800"><i class="fas fa-cloud-upload-alt mr-2"></i>Publicar horário</h3>
+            <p class="text-gray-600 mb-4 text-sm">A versão atual substituirá a publicação disponível para consulta. As dez últimas versões serão mantidas na aba <b>VersaoPublicada</b>.</p>
+            <label class="block text-xs font-bold text-gray-600 mb-1" for="inputComentarioPublicacao">Comentário da versão <span class="font-normal text-gray-400">(opcional)</span></label>
+            <textarea id="inputComentarioPublicacao" maxlength="500" rows="3" placeholder="Ex.: Ajuste das turmas integradas e dos ambientes de laboratório." class="w-full border rounded p-2 text-sm focus:outline-none focus:border-teal-600 mb-3 resize-y"></textarea>
+            <label class="block text-xs font-bold text-gray-600 mb-1" for="inputSenhaPublicacao">Senha de publicação</label>
+            <input id="inputSenhaPublicacao" type="password" autocomplete="current-password" class="w-full border rounded p-2 text-sm focus:outline-none focus:border-teal-600" onkeydown="if(event.key === 'Enter') publicarHorarioNaNuvem()">
+            <p id="publishStatus" class="hidden mt-3 text-xs"></p>
+            <div class="flex justify-end gap-2 mt-5">
+                <button onclick="fecharModalPublicacao()" id="btnCancelarPublicacao" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm transition">Cancelar</button>
+                <button onclick="publicarHorarioNaNuvem()" id="btnConfirmarPublicacao" class="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700 text-sm shadow transition">Publicar</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         function showModal(m,c,a=false){const md=document.getElementById('customModal');document.getElementById('modalMsg').innerText=m;const bc=document.getElementById('modalBtnConfirm');const bn=document.getElementById('modalBtnCancel');const nb=bc.cloneNode(true);bc.parentNode.replaceChild(nb,bc);if(a){bn.classList.add('hidden');nb.innerText='OK';nb.onclick=closeModal;}else{bn.classList.remove('hidden');nb.innerText='Confirmar';nb.onclick=()=>{if(c)c();closeModal();};}md.classList.remove('hidden');}
         function closeModal(){document.getElementById('customModal').classList.add('hidden');}
         const uiAlert=(m)=>showModal(m,null,true); const uiConfirm=(m,c)=>showModal(m,c,false);
+        const URL_SERVICO_CHICRI = 'https://script.google.com/macros/s/AKfycbwOE0oeB738XSWvM7Exe4rmkIvnOtqbqU5CmTu0SKM2NMeYrDH2JZXhE_AWzVS1gGuC/exec';
+
+        function urlServicoCHICri(acao) {
+            return `${URL_SERVICO_CHICRI}?acao=${encodeURIComponent(acao)}`;
+        }
+        function definirStatusPublicacao(mensagem, tipo) {
+            const el = document.getElementById('publishStatus');
+            if(!el) return;
+            el.textContent = mensagem;
+            el.className = `mt-3 text-xs ${tipo === 'erro' ? 'text-red-700' : tipo === 'sucesso' ? 'text-green-700' : 'text-gray-600'}`;
+        }
+        function abrirModalPublicacao() {
+            const campo = document.getElementById('inputSenhaPublicacao');
+            campo.value = '';
+            document.getElementById('inputComentarioPublicacao').value = '';
+            definirStatusPublicacao('A senha é solicitada a cada publicação e não é armazenada neste computador.', 'info');
+            document.getElementById('publishModal').classList.remove('hidden');
+            setTimeout(() => campo.focus(), 0);
+        }
+        function fecharModalPublicacao() {
+            document.getElementById('inputSenhaPublicacao').value = '';
+            document.getElementById('inputComentarioPublicacao').value = '';
+            document.getElementById('publishModal').classList.add('hidden');
+        }
+        async function publicarHorarioNaNuvem() {
+            const campoSenha = document.getElementById('inputSenhaPublicacao');
+            const senha = campoSenha.value;
+            const comentario = document.getElementById('inputComentarioPublicacao').value.trim();
+            if(!senha) {
+                definirStatusPublicacao('Digite a senha de publicação.', 'erro');
+                campoSenha.focus();
+                return;
+            }
+            const botao = document.getElementById('btnConfirmarPublicacao');
+            const cancelar = document.getElementById('btnCancelarPublicacao');
+            botao.disabled = true;
+            cancelar.disabled = true;
+            botao.classList.add('opacity-50', 'cursor-not-allowed');
+            definirStatusPublicacao('Preparando e enviando a versão atual…', 'info');
+            try {
+                const conteudo = gerarConteudoCRIC(tur);
+                const resposta = await fetch(URL_SERVICO_CHICRI, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({ acao: 'publicar_horario', senha, conteudo, comentario })
+                });
+                const texto = await resposta.text();
+                let retorno;
+                try { retorno = JSON.parse(texto); }
+                catch(e) { throw new Error('O servidor retornou uma resposta inválida.'); }
+                if(!resposta.ok || retorno.status !== 'sucesso') throw new Error(retorno.mensagem || 'Não foi possível publicar o horário.');
+                campoSenha.value = '';
+                definirStatusPublicacao(`Publicação concluída: versão ${retorno.versao} às ${retorno.publicadoEm}.`, 'sucesso');
+                setTimeout(fecharModalPublicacao, 1500);
+            } catch(erro) {
+                definirStatusPublicacao(erro.message || 'Falha ao publicar o horário.', 'erro');
+            } finally {
+                botao.disabled = false;
+                cancelar.disabled = false;
+                botao.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
 
         const PESOS_PADRAO = {
             restricao: 120000,
@@ -3788,7 +3873,7 @@
             if (bestTurGlobal) exportarCRIC(bestTurGlobal);
         }
 
-        function exportarCRIC(lista = tur, isAutoBackup = false){
+        function gerarConteudoCRIC(lista = tur){
             let cric="TIPO§NOME§D1§D2§D3§D4§D5§D6\n";
             cric+=`CFG§PESOS§${encodeURIComponent(JSON.stringify(pesosRestricoes))}§§§§§\n`;
             cric+=`CFG§AULAS§${NUM_AULAS}§§§§§\n`;
@@ -3828,6 +3913,11 @@
                     if(val){val.split('&').forEach(aloc=>{const parts=aloc.split('|');const p=parts[0];const dn=parts[1];const sl=parts[2];const prNs=p.split(',').filter(Boolean).map(id=>prof.find(x=>x.id==id)?.nome||'?').join('+');cric+=`ALOC§${t.nome}§${d}§${trId}§${hr}§${prNs}|${dn}|${sl}\n`;})}
                 }
             })})});
+            return cric;
+        }
+
+        function exportarCRIC(lista = tur, isAutoBackup = false){
+            const cric = gerarConteudoCRIC(lista);
             const b=new Blob([cric],{type:'text/cric'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;const dh=new Date().toLocaleString('pt-BR').replace(/[\/:]/g,'-').replace(', ','_');
             const nomeInput = document.getElementById('nomeArquivoExport');
             const nomeBase = (nomeInput && nomeInput.value.trim() !== '') ? nomeInput.value.trim() : 'CHICri';
@@ -4009,12 +4099,12 @@
         }
 
         async function importarDaWeb() {
-            uiConfirm("Importar dados da nuvem? Os dados atuais serão substituídos.", async ()=>{
+            uiConfirm("Importar a última versão publicada na nuvem? Os dados atuais serão substituídos.", async ()=>{
                 invalidarUndo();
                 document.getElementById('loadingOverlay').classList.remove('hidden');
-                document.getElementById('loadingStatus').innerText = "Baixando dados da nuvem...";
+                document.getElementById('loadingStatus').innerText = "Baixando a última versão publicada...";
                 try {
-                    const response = await fetch("https://script.google.com/macros/s/AKfycbwOE0oeB738XSWvM7Exe4rmkIvnOtqbqU5CmTu0SKM2NMeYrDH2JZXhE_AWzVS1gGuC/exec");
+                    const response = await fetch(`${urlServicoCHICri('versao_publicada')}&_=${Date.now()}`, { cache: 'no-store' });
                     if (!response.ok) throw new Error("Falha na rede");
                     const text = await response.text();
                     
@@ -4022,12 +4112,36 @@
                     if (text.trim().toLowerCase().startsWith("<!doctype html") || text.includes("<html")) {
                         throw new Error("O Google Script retornou uma página de erro.");
                     }
+                    if (text.startsWith('ERRO:')) throw new Error(text.substring(5).trim());
                     
                     document.getElementById('loadingOverlay').classList.add('hidden');
                     executarProcessamentoCRIC(text);
                 } catch (err) {
                     document.getElementById('loadingOverlay').classList.add('hidden');
                     uiAlert("Erro ao baixar dados da nuvem. Verifique sua conexão, o retorno ou a URL do script.");
+                }
+            });
+        }
+
+        async function importarDefinicoesCoordenadores() {
+            uiConfirm("Importar as definições de coordenadores? Os dados atuais serão substituídos.", async ()=>{
+                invalidarUndo();
+                document.getElementById('loadingOverlay').classList.remove('hidden');
+                document.getElementById('loadingStatus').innerText = "Baixando definições de coordenadores...";
+                try {
+                    const response = await fetch(`${URL_SERVICO_CHICRI}?_=${Date.now()}`, { cache: 'no-store' });
+                    if (!response.ok) throw new Error("Falha na rede");
+                    const text = await response.text();
+                    if (text.trim().toLowerCase().startsWith("<!doctype html") || text.includes("<html")) {
+                        throw new Error("O Google Script retornou uma página de erro.");
+                    }
+                    if (text.startsWith('ERRO:')) throw new Error(text.substring(5).trim());
+
+                    document.getElementById('loadingOverlay').classList.add('hidden');
+                    executarProcessamentoCRIC(text);
+                } catch (err) {
+                    document.getElementById('loadingOverlay').classList.add('hidden');
+                    uiAlert("Erro ao baixar as definições de coordenadores. Verifique sua conexão, o retorno ou a URL do script.");
                 }
             });
         }
