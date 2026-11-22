@@ -166,32 +166,49 @@
                 <div class="w-px bg-green-500 mx-1 h-6"></div>
 
                 <div class="relative group">
-                    <button onclick="exportarCRIC()" class="text-xs bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded shadow transition flex items-center">
-                        <i class="fas fa-download"></i>
-                    </button>
-                    <div class="absolute right-0 top-full mt-1 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 p-2">
-                        <label class="block text-[10px] text-gray-500 font-bold mb-1">Nome do arquivo:</label>
-                        <input type="text" id="nomeArquivoExport" value="CHICri" placeholder="Nome..." class="w-full border rounded p-1 text-xs text-gray-800 focus:outline-none focus:border-green-500" onclick="event.stopPropagation()">
-                    </div>
-                </div>
-
-                <div class="relative group">
-                    <button onclick="abrirModalPublicacao()" class="text-xs bg-teal-600 hover:bg-teal-700 text-white py-1 px-3 rounded shadow transition font-bold border border-teal-500 flex items-center" title="Publicar a versão atual para consulta dos professores">
-                        <i class="fas fa-cloud-upload-alt mr-1"></i> Publicar na nuvem
-                    </button>
-                </div>
-
-                <div class="relative group">
-                    <button class="text-xs bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded shadow transition flex items-center">
-                        <i class="fas fa-upload"></i>
-                    </button>
-                    <div class="absolute right-0 mt-0 w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200">
-                        <a href="#" onclick="document.getElementById('cricInput').click()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs"><i class="fas fa-file-import mr-1"></i> Arquivo Local (.cric)</a>
-                        <a href="#" onclick="importarDaWeb()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs"><i class="fas fa-cloud-download-alt mr-1"></i> Importar da Nuvem</a>
-                        <a href="#" onclick="importarDefinicoesCoordenadores()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs"><i class="fas fa-user-cog mr-1"></i> Importar definições de coordenadores</a>
-                    </div>
-                </div>
-                <input type="file" id="cricInput" accept=".cric,.csv" class="hidden" onclick="this.value=null" onchange="importarCRIC(this)">
+				    <button class="text-xs bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded shadow transition flex items-center gap-2">
+				        <i class="fas fa-file-import"></i>
+				    </button>
+				
+				    <div class="absolute right-0 top-[85%] w-56 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 py-1">
+				        <a href="#" onclick="document.getElementById('cricInput').click()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">
+				            <i class="fas fa-folder-open mr-1"></i> Arquivo Local (.cric)
+				        </a>
+				
+				        <a href="#" onclick="importarDaWeb()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">
+				            <i class="fas fa-cloud-download-alt mr-1"></i> Importar da Nuvem
+				        </a>
+				
+				        <a href="#" onclick="importarDefinicoesCoordenadores()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">
+				            <i class="fas fa-user-cog mr-1"></i> Definições de coordenadores
+				        </a>
+				    </div>
+				</div>
+				<div class="relative group">
+				    <button class="text-xs bg-green-600 hover:bg-green-700 text-white py-1 px-3 rounded shadow transition flex items-center gap-2">
+				        <i class="fas fa-save"></i>
+				    </button>
+				
+				    <div class="absolute right-0 top-[85%] w-48 bg-white rounded-md shadow-lg hidden group-hover:block z-50 border border-gray-200 overflow-hidden">
+				
+				        <!-- PUBLICAR NA NUVEM (FUNDO BRANCO) -->
+				        <a href="#" onclick="abrirModalPublicacao()" class="block px-4 py-2 text-gray-800 hover:bg-gray-100 text-xs">
+				            <i class="fas fa-cloud-upload-alt mr-1"></i> Publicar na nuvem
+				        </a>
+				    
+				        <!-- AGRUPAMENTO SALVAR LOCAL -->
+				        <div style="background: #e4f2ff;border-radius: 5px;" class="p-2">
+				             
+				            <a href="#" onclick="exportarCRIC()" class="block px-2 py-2 text-gray-800 hover:bg-white/50 text-xs rounded">
+				                <i class="fas fa-download mr-1"></i> Baixar com nome:
+				            </a>
+				   
+				            <input type="text" id="nomeArquivoExport" value="CHICri" placeholder="Nome..." class="w-full border rounded p-1 text-xs text-gray-800 focus:outline-none focus:border-green-500 mb-2">
+				        
+				            </div>
+				
+				    </div>
+				</div>
 
                 <button onclick="limparTudo()" class="text-xs bg-red-500 hover:bg-red-600 text-white py-1 px-3 rounded shadow transition ml-1">
                     <i class="fas fa-trash"></i>
