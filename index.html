@@ -136,7 +136,7 @@
           ? scheduleData.classes.find(x=>x.name===item.name)?.name
           : item.name;
         const sectionIndex=orderedKeys.indexOf(colorKey(sectionColor));
-        return `<section style="margin-bottom:18px"><div class="section" style="border-left:5px solid ${getColor(sectionIndex<0?0:sectionIndex).accent}">${safe(item.name)}${view==='turmas'?`<span>${safe(item.course)}${item.students?` · ${safe(item.students)} alunos`:''}</span>`:''}</div>${makeGrid([item],mode,colorMap)}</section>`;
+        return `<section style="margin-bottom:18px"><div class="section" style="border-left:5px solid ${getColor(sectionIndex<0?0:sectionIndex).accent}">${safe(item.name)}</div>${makeGrid([item],mode,colorMap)}</section>`;
       }).join('');
     }
     async function load(force=false){
