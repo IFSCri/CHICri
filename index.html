@@ -55,6 +55,7 @@
 
     function safe(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
     function splitTeachers(value){return [...new Set(String(value||'').split('+').map(name=>name.trim()).filter(Boolean))];}
+    function splitRooms(value){return [...new Set(String(value||'').split('+').map(name=>name.trim()).filter(Boolean))];}
     function parseCRIC(text){
       const data={days:4,rooms:[],subjects:[],teachers:[],classes:[],allocations:[]};
       const classMap=new Map(),teacherMap=new Map();
@@ -119,7 +120,7 @@
       let items=[],mode=view;
       if(view==='professores')items=scheduleData.teachers.map(x=>({...x,allocations:x.classes})).filter(x=>x.allocations.length);
       else if(view==='turmas')items=scheduleData.classes.map(x=>({...x,allocations:x.allocations||[]})).filter(x=>x.allocations.length&&(!course||x.course===course));
-      else items=scheduleData.rooms.map(x=>({...x,allocations:scheduleData.allocations.filter(a=>a.room===x.name)})).filter(x=>x.allocations.length);
+      else items=scheduleData.rooms.map(x=>({...x,allocations:scheduleData.allocations.filter(a=>splitRooms(a.room).some(room=>colorKey(room)===colorKey(x.name)))})).filter(x=>x.allocations.length);
       items=items.filter(x=>x.name.toLocaleLowerCase('pt-BR').includes(query));
       items.sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
       document.getElementById('resultCount').textContent=`${items.length} ${view==='professores'?'professor(es)':view==='turmas'?'turma(s)':'ambiente(s)'}`;
